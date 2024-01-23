@@ -1,10 +1,15 @@
+.DS_Store
+.xlsx
+
 # History files
 .Rhistory
 .Rapp.history
 
+
 # Session Data files
 .RData
 .RDataTmp
+.RDataTmp1
 
 # User-specific files
 .Ruserdata
