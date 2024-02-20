@@ -1,0 +1,13 @@
+default:
+  # local settings
+  agen_com_dict: 'agency_communion.dic'
+  general_inquir: 'inquirer.dic'
+  prosocial_dict: 'prosocial.dic'
+  stress_dict: 'Stress_dictionary.dic'
+  tms_streng_dict: 'sj-dic-2-sgr-10.1177_10464964231182130.dic'
+  uncertainty_dict: 'Uncertainty_Business.dic'
+  personal_values_dict: 'personal_values.dic'
+  wwpb_wellbeing: 'wwbp_wellbeing.csv'
+  
+calculon:
+  dict_file_path: '/Volumes/calculon/closed_voc_dictionaries'

@@ -16,8 +16,8 @@ getDictionaryScores <- function(df, text_col, dict_file_loc) {
   dic <- quanteda::dictionary(
     file = dict_file_loc,
     format = 'LIWC')
-  print(df[text_col])
-  corp <- quanteda::corpus(df[text_col])
+  # print(df[text_col])
+  corp <- quanteda::corpus(df[,text_col])
   scored_df <- quanteda::tokens(corp) |>
     tokens_lookup(dictionary = dic) |>
     quanteda::dfm() 
@@ -25,6 +25,27 @@ getDictionaryScores <- function(df, text_col, dict_file_loc) {
     bind_cols(
       quanteda::convert(scored_df,to = 'data.frame')
     )
+  return(df)
+}
+
+getMultipleDictionaryScores <- function(df, text_col, dict_file_path, dict_list) {
+  # This should apply any correctly formatted closed-voc data set to a df,
+  # and return original df with appened dictionary scores
+  corp <- quanteda::corpus(df[,text_col])
+  df_list <- list()
+  df_list[['orig_df']] <- df
+  for (dict in dict_list) {
+    print(dict)
+    if (endsWith(dict,'.dic')) {frmt <- 'LIWC'} else {frmt <- 'yoshikoder'}
+    dic <- quanteda::dictionary(
+      file = here::here(dict_file_path,dict),
+      format = frmt)
+    scored_df <- quanteda::tokens(corp) |>
+      tokens_lookup(dictionary = dic) |>
+      quanteda::dfm()
+    df_list[[dict]] <- quanteda::convert(scored_df,to = 'data.frame') |> select(-doc_id)
+  }
+  df <- bind_cols(df_list)
   return(df)
 }
 

@@ -11,6 +11,8 @@ library(tidyverse)
 library(quanteda)
 library(ggplot2)
 library(EWSmethods)
+Sys.setenv(R_CONFIG_ACTIVE = 'calculon')
+config <- config::get()
 
 get_and_clean_ASRS <- function(asrs.files) {
   dfs <- NULL
