@@ -1,0 +1,7 @@
+t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/DEMO23Q1.txt', sep = '$')
+# t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/DRUG23Q1.txt', sep = '$')
+# t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/INDI23Q1.txt', sep = '$')
+# t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/OUTC23Q1.txt', sep = '$')
+# t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/REAC23Q1.txt', sep = '$')
+# t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/RPSR23Q1.txt', sep = '$')
+# t <- read.delim('/Users/mrosen44/Downloads/faers_ascii_2023q1/ASCII/THER23Q1.txt', sep = '$')

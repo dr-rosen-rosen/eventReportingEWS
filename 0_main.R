@@ -9,52 +9,24 @@
 
 library(tidyverse)
 library(quanteda)
-library(ggplot2)
+# library(ggplot2)
 library(EWSmethods)
+library(here)
 Sys.setenv(R_CONFIG_ACTIVE = 'calculon')
 config <- config::get()
 
-get_and_clean_ASRS <- function(asrs.files) {
-  dfs <- NULL
-  for (f_path in asrs.files) {
-    l1 <- readxl::read_xlsx(asrs.files[1],
-                            n_max = 0,
-                            .name_repair = 'minimal') |> names()
-    l2 <- readxl::read_xlsx(asrs.files[1],
-                            skip = 1,
-                            n_max = 0,
-                            .name_repair = 'minimal') |> names()
-    if (length(l1) == length(l2)) {
-      header <- mapply(FUN = function(x,y) {
-        paste0(x,y,sep = '.')}, x = l1,y = l2
-      )
-    }
-    df <- readxl::read_xlsx(f_path,
-                            skip = 3,
-                            col_names = header,
-                            range = readxl::cell_cols("A:DU")) |>
-      janitor::clean_names()
-    if (is.null(dfs)) {
-      dfs <- df
-    } else {dfs <- bind_rows(dfs,df)}
-  }
-  dfs <- dfs |>
-    filter(!is.na(acn), acn != 'ACN') |>
-    mutate(
-      date = as.Date(paste0(substr(time_date,start = 1, stop = 4),'-',substr(time_date,start = 5, stop = 6),'-01'),format = "%Y-%m-%d")
-    ) |>
-    unite('cmbd_narrative',starts_with('report_'),sep = " ", na.rm = TRUE,remove = FALSE) |>
-    mutate(tot_wc = stringr::str_count(cmbd_narrative, '\\w+'))
-  return(dfs)
-}
 
-df <- get_and_clean_ASRS(
-  asrs.files = list.files(path = '/Volumes/LaCie/ASRS_data',
-                          pattern = "*.xlsx$",
-                          full.names = TRUE,
-                          recursive = FALSE)
-) 
-df |> write.csv('/Volumes/LaCie/event_ews/cmb_asrs.csv')
+
+# df <- get_and_clean_ASRS(
+#   asrs.files = list.files(path = '/Volumes/LaCie/ASRS_data',
+#                           pattern = "*.xlsx$",
+#                           full.names = TRUE,
+#                           recursive = FALSE)
+# ) 
+# df |> write.csv('/Volumes/LaCie/event_ews/cmb_asrs.csv')
+
+df <- readxl::read_excel(here(config$asrs_data_path,config$asrs_events_file))
+
 hist(df$tot_wc)
 df2 <- df |>
   filter(aircraft_1aircraft_operator == 'Air Carrier', person_1reporter_organization == 'Air Carrier') |>

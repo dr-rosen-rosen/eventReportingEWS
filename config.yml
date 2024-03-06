@@ -8,6 +8,20 @@ default:
   uncertainty_dict: 'Uncertainty_Business.dic'
   personal_values_dict: 'personal_values.dic'
   wwpb_wellbeing: 'wwbp_wellbeing.csv'
-  
 calculon:
   dict_file_path: '/Volumes/calculon/closed_voc_dictionaries'
+  nrc_data_path: '/Volumes/calculon/event_reporting/nrc'
+  nrc_events_file: 'event_reports_nrc.csv'
+  nrc_liwc_file: 'LIWC-22 Results - event_reports_nrc - LIWC Analysis.csv'
+  nrc_emo_voc_file: 'NRC_BUTTER-CSVOutput.csv'  
+  nrc_butter_file: 'ALL_TARGET_DICTS_NRC_BUTTER-CSVOutput.csv'
+  asrs_data_path: '/Volumes/calculon/event_reporting/aviation'
+  asrs_events_file: 'cmbd_ASRS.xlsx' # this file only as COMBINED NARRATIVE; look at just first reporter?
+  asrs_liwc_file: 'LIWC-22 Results - cmbd_ASRS - LIWC Analysis.csv'
+  asrs_emo_voc_file: 'ASRS_BUTTER-CSVOutput.csv'
+  asrs_butter_file: 'ALL_TARGET_DICTS_ASRS_BUTTER-CSVOutput.csv'
+  rail_data_path: '/Volumes/calculon/event_reporting/rail_safety_reports'
+  rail_events_file: 'Rail_Equipment_Accident_Incident_Data__Form_54__20240129.csv'
+  rail_liwc_file: 'LIWC-22 Results - Rail_Equipment_Accident_Incide___ - LIWC Analysis.csv'
+  rail_emo_voc_file: 'rail_BUTTER-CSVOutput.csv'
+  rail_butter_file: 'ALL_TARGET_DICTS_RAIL_BUTTER-CSVOutput.csv'
