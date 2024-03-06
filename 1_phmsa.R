@@ -4,6 +4,7 @@
 ###### and separate out links and 
 ###### report IDs
 ###################################
+library(tidyverse)
 
 files <- list.files(
   path = here::here('/Volumes/calculon/event_reporting/phmsa/link_pages'),
@@ -29,4 +30,5 @@ files <- list.files(
 files <- stringr::str_remove(files, '.pdf')
 length(files)
 
-test2 <- test |> filter(report_no %in% files)
+test2 <- test |> filter(!(report_no %in% files))
+write.csv(test2,'phmsa_links_03-06-2024.csv')
