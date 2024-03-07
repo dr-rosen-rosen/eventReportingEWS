@@ -21,13 +21,13 @@ test <- lapply(files, read.csv) |>
 write.csv(test,'phmsa_links.csv')
 
 files <- list.files(
-  path = here::here('/Volumes/calculon/event_reporting/phmsa/reports'),
+  path = here::here('/Volumes/calculon/event_reporting/phmsa/reports2'),
   pattern = "*.pdf",
   full.names = FALSE#,
   # include.dirs = TRUE,
   # recursive = TRUE
 )
-files <- stringr::str_remove(files, '.pdf')
+# files <- stringr::str_remove(files, '.pdf')
 length(files)
 
 test2 <- test |> filter(!(report_no %in% files))

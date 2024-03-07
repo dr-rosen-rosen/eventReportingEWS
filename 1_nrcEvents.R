@@ -37,16 +37,16 @@ nrc_dict_df <- getMultipleDictionaryScores(
   text_col = 'event_text',
   dict_file_path = config$dict_file_path, 
   dict_list = list(
-    'ag_co' = config$agen_com_dict,
-    'gi' = config$general_inquir,
-    'pro_so' = config$prosocial_dict,
-    'stress' = config$stress_dict,
+    # 'ag_co' = config$agen_com_dict,
+    'gi' = config$general_inquir#,
+    # 'pro_so' = config$prosocial_dict,
+    # 'stress' = config$stress_dict,
     # 'tms' = config$tms_streng_dict,
     # 'uncert' = config$uncertainty_dict#,
-    'per_val' = config$personal_values_dict#,
+    # 'per_val' = config$personal_values_dict#,
     # 'wllbng' = config$wwpb_wellbeing
   ))
-
+# write.csv(names(nrc_dict_df),'var_names.csv')
 nrc_dict_df |>
   select(starts_with(c('liwc','emo_voc','gi','pro_so','stress','per_val'))) |>
   colMeans(na.rm = TRUE) |> write.csv('dict_colMeans.csv')

@@ -17,17 +17,17 @@ nrow(asrs_df)
 # # filter(between(lubridate::year(event_date2),1999,2023))
 
 
-asrs__dict_df <- getMultipleDictionaryScores(
-  df = asrs__df, 
-  text_col = 'cmb_narrative',
+asrs_dict_df <- getMultipleDictionaryScores(
+  df = asrs_df, 
+  text_col = 'cmbd_narrative',
   dict_file_path = config$dict_file_path, 
   dict_list = list(
-    'ag_co' = config$agen_com_dict,
-    'gi' = config$general_inquir,
-    'pro_so' = config$prosocial_dict,
-    'stress' = config$stress_dict,
+    # 'ag_co' = config$agen_com_dict,
+    'gi' = config$general_inquir#,
+    # 'pro_so' = config$prosocial_dict,
+    # 'stress' = config$stress_dict,
     # 'tms' = config$tms_streng_dict,
     # 'uncert' = config$uncertainty_dict#,
-    'per_val' = config$personal_values_dict#,
+    # 'per_val' = config$personal_values_dict#,
     # 'wllbng' = config$wwpb_wellbeing
   ))

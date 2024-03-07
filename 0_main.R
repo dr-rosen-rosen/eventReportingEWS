@@ -14,6 +14,7 @@ library(EWSmethods)
 library(here)
 Sys.setenv(R_CONFIG_ACTIVE = 'calculon')
 config <- config::get()
+source('1_funcs.R')
 
 
 
