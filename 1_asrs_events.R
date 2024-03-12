@@ -5,11 +5,16 @@ asrs_df <- get_cmbd_ASRS(
   add_liwc = here::here(config$asrs_data_path,config$asrs_liwc_file),
   add_emo_voc = here::here(config$asrs_data_path,config$asrs_emo_voc_file),
   add_butter = here::here(config$asrs_data_path,config$asrs_butter_file))
+asrs_df <- asrs_df |> 
+  filter(
+    !is.na(cmbd_narrative), 
+    cmbd_narrative != '', 
+    utf8::utf8_valid(cmbd_narrative))
 
-skimr::skim(asrs_df)
-nrow(asrs_df)
+# skimr::skim(asrs_df)
+# nrow(asrs_df)
 # unique(asrs_df$Reporting.Railroad.Code)
-nrow(asrs_df)
+# nrow(asrs_df)
 # asrs_df <- asrs_df |>
 #   group_by(Reporting.Railroad.Code) |>
 #   filter(n() >= 100) |> # drop facilities with low n
@@ -31,3 +36,7 @@ asrs_dict_df <- getMultipleDictionaryScores(
     # 'per_val' = config$personal_values_dict#,
     # 'wllbng' = config$wwpb_wellbeing
   ))
+asrs_df$cmbd_narrative <- as.character(asrs_df$cmbd_narrative)
+asrs_dict_df$PV_aux_pas <- getPassiveVoice(df = asrs_df, text_col = 'cmbd_narrative',ratio = TRUE)
+spacyr::spacy_finalize()
+beepr::beep()

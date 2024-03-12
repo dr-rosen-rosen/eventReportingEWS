@@ -57,18 +57,16 @@ getMultipleDictionaryScores <- function(df, text_col, dict_file_path, dict_list)
 
 getPassiveVoice <- function(df,text_col,ratio) {
   # largely taken from here: https://osf.io/nwsx3/
-  d <- spacyr::spacy_parse(df[,text_col], dependency = T)
+  d <- spacyr::spacy_parse(
+    quanteda::corpus(df, text_field = text_col), 
+    dependency = TRUE)
   aux_pass <- d |>
     mutate(doc_id = as.numeric(str_remove_all(doc_id, "text"))) |>
     group_by(doc_id) |>
     summarise(aux_pass = sum(dep_rel=="auxpass"))
   if (ratio){
-    total_words <- df |> 
-      select(!!sym(text_col)) |>
-      as_tibble() |>
-      rowwise() |>
-      mutate(wc = ngram::wordcount(value))
-    return(aux_pass$aux_pass/total_words$wc)}
+    return(aux_pass$aux_pass / unname(sapply(df[,text_col], ngram::wordcount)))
+    }
   else{
     return(aux_pass$aux_pass)}
 }
@@ -183,6 +181,31 @@ get_and_clean_rail_events <- function(f,add_liwc,add_emo_voc,add_butter) {
       read.csv(add_liwc)  |> select(all_of(liwc_vars)) |>
         rename_with(~ paste0("liwc_", .x))
     )
+  }
+  if(!is.na(add_emo_voc)) {
+    df <- df |> bind_cols(
+      read.csv(add_emo_voc)|> select(all_of(emo_voc_vars)) |>
+        rename_with(~ paste0("emo_voc_", .x))
+    )
+  }
+  if(!is.na(add_butter)) {
+    df <- df |> bind_cols(
+      (read.csv(add_butter) |> select(-TextID,-Segment,-SegmentID,-TokenCount))
+    )
+  }
+  return(df)
+}
+
+get_cmbd_phmsa <- function(f,add_liwc,add_emo_voc,add_butter) {
+  df <- read.csv(f)
+  if(!is.na(add_liwc)) {
+    df_liwc <- read.csv(add_liwc) |>
+      select(all_of(c('report_no',liwc_vars))) |>
+      rename_with(.cols = all_of(liwc_vars), .fn = ~ paste0("liwc_", .x))
+    df <- df |> left_join(
+      df_liwc, by = 'report_no')# |> 
+      # select(all_of(liwc_vars)) |>
+      # rename_with(~ paste0("liwc_", .x))
   }
   if(!is.na(add_emo_voc)) {
     df <- df |> bind_cols(
