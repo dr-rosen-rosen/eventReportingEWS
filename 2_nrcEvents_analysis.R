@@ -7,16 +7,8 @@ library(lme4)
 library(here)
 source('1_funcs.R')
 
-# read in event data
-# need to figure out some of the remaining low n facilities
 
-nrc_df <- get_and_clean_NRC_events(
-  f = here(config$nrc_data_path,config$nrc_events_file),
-  add_liwc = here::here(config$nrc_data_path,config$nrc_liwc_file),
-  add_emo_voc = here::here(config$nrc_data_path,config$nrc_emo_voc_file),
-  add_butter = here::here(config$nrc_data_path,config$nrc_butter_file))
-# skimr::skim(nrc_df)
-nrc_df <- nrc_df |> filter(!is.na(event_text), event_text != '', utf8::utf8_valid(event_text))
+
 # table(nrc_df$facility)
 # nrc_df <- nrc_df |> 
 #   group_by(facility) |> 
@@ -32,22 +24,7 @@ nrc_df <- nrc_df |> filter(!is.na(event_text), event_text != '', utf8::utf8_vali
 #   ggplot(aes(x = year, y = n)) + geom_bar(stat = 'identity')
 
 
-nrc_dict_df <- getMultipleDictionaryScores(
-  df = nrc_df, 
-  text_col = 'event_text',
-  dict_file_path = config$dict_file_path, 
-  dict_list = list(
-    # 'ag_co' = config$agen_com_dict,
-    'gi' = config$general_inquir#,
-    # 'pro_so' = config$prosocial_dict,
-    # 'stress' = config$stress_dict,
-    # 'tms' = config$tms_streng_dict,
-    # 'uncert' = config$uncertainty_dict#,
-    # 'per_val' = config$personal_values_dict#,
-    # 'wllbng' = config$wwpb_wellbeing
-  ))
-nrc_dict_df$PV_aux_pas <- getPassiveVoice(df = nrc_df, text_col = 'event_text',ratio = TRUE)
-spacyr::spacy_finalize()
+
 
 # write.csv(names(nrc_dict_df),'var_names.csv')
 # nrc_dict_df |>
@@ -78,6 +55,14 @@ spacyr::spacy_finalize()
 #   aggregation_from_tokens_to_texts = "mean",
 #   aggregation_from_tokens_to_word_types = "mean",
 #   keep_token_embeddings = FALSE)
+
+
+
+##################################################
+##############
+############## Using factor scores
+##############
+##################################################
 
 nrc_df2 <- nrc_dict_df3 |>
   group_by(facility) |>

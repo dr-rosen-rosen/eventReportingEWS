@@ -77,33 +77,3 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
 
 ######
 
-phmsa_df <- get_cmbd_phmsa(
-  f = here::here(config$phmsa_data_path,config$phmsa_events_file),
-  add_liwc = here::here(config$phmsa_data_path,config$phmsa_liwc_file),
-  add_emo_voc = here::here(config$phmsa_data_path,config$phmsa_emo_voc_file),
-  add_butter = here::here(config$phmsa_data_path,config$phmsa_butter_file))
-
-phmsa_df <- phmsa_df |> 
-  filter(
-    !is.na(cmbd_narrative), 
-    cmbd_narrative != '', 
-    utf8::utf8_valid(cmbd_narrative))
-
-phmsa_dict_df <- getMultipleDictionaryScores(
-  df = phmsa_df, 
-  text_col = 'cmbd_narrative',
-  dict_file_path = config$dict_file_path, 
-  dict_list = list(
-    # 'ag_co' = config$agen_com_dict,
-    'gi' = config$general_inquir#,
-    # 'pro_so' = config$prosocial_dict,
-    # 'stress' = config$stress_dict,
-    # 'tms' = config$tms_streng_dict,
-    # 'uncert' = config$uncertainty_dict#,
-    # 'per_val' = config$personal_values_dict#,
-    # 'wllbng' = config$wwpb_wellbeing
-  ))
-phmsa_df$cmbd_narrative <- as.character(phmsa_df$cmbd_narrative)
-phmsa_dict_df$PV_aux_pas <- getPassiveVoice(df = phmsa_df, text_col = 'cmbd_narrative',ratio = TRUE)
-spacyr::spacy_finalize()
-beepr::beep()
