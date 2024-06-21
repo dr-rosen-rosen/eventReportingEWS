@@ -265,13 +265,13 @@ get_and_clean_and_code_phmsa <- function(f,add_liwc,add_emo_voc,add_butter,add_m
 harmonize_key_vars <- function(df, source) {
   #creates 
   if (source == 'asrs') {
-    key <- c(event_date = 'date',event_num = 'acn')
+    key <- c(event_date = 'date',event_num = 'acn', event_text = 'cmbd_narrative')#cmbd_narrative = 'event_text')
   } else if (source == 'rail') {
-    key <- c(event_date = 'Date',event_num = 'Accident.Number')
+    key <- c(event_date = 'Date',event_num = 'Accident.Number', event_text = 'Narrative')#Narrative = 'event_text')
   } else if (source == 'nrc') {
     key <- c(event_date = 'event_date',event_num = 'event_num')
   } else if (source == 'phmsa') {
-    key <- c(event_date = 'date',event_num = 'report_no')
+    key <- c(event_date = 'date',event_num = 'report_no', event_text = 'cmbd_narrative')#cmbd_narrative = 'event_text')
   }
   if (exists('key')) {
     return(
@@ -283,6 +283,145 @@ harmonize_key_vars <- function(df, source) {
   }
 
 }
+
+################################################################
+###################
+################### Database mngmt
+################### 
+###################
+################################################################
+
+insert_new_column <- function(con, table, column_name, column_type) {
+  print(glue::glue("Attempting to insert {column_name} as {column_type}"))
+  stmt <- glue::glue("ALTER TABLE ?table ADD COLUMN IF NOT EXISTS ?column_name {column_type};")
+  q <- DBI::sqlInterpolate(
+    conn = con, 
+    stmt, 
+    table= DBI::dbQuoteIdentifier(con, table), 
+    column_name= DBI::dbQuoteIdentifier(con, column_name)
+    )
+  print(q)
+  DBI::dbExecute(conn = con, q)
+}
+
+create_link_table <- function(con){
+  q <- DBI::sqlInterpolate(
+    conn = con, 
+    "CREATE TABLE IF NOT EXISTS link_table (eid uuid PRIMARY KEY DEFAULT gen_random_uuid(), system_source text, event_date date, event_num text)")
+  DBI::dbExecute(conn = con, q)
+}
+
+create_raw_table <- function(con,df, table_name, update_values) {
+  q <- DBI::sqlInterpolate(
+    conn = con,
+    "CREATE TABLE IF NOT EXISTS ?table_name (eid uuid PRIMARY KEY, CONSTRAINT fk_eid FOREIGN KEY(eid) REFERENCES link_table(eid));",
+    table_name = DBI::dbQuoteIdentifier(con, table_name)
+  )
+  DBI::dbExecute(conn = con, q)
+  for(c in names(df)) {
+    if(c != 'eid') {
+      print(c)
+      print(class(df[,c]))
+      insert_new_column(
+        con = con,
+        table = table_name,
+        column_name = c,
+        column_type = DBI::dbDataType(con, df[,c])
+        )
+    }
+  }
+  if(update_values) { # need to check existing entries
+    DBI::dbWriteTable(
+      conn = con, 
+      table_name, 
+      df, 
+      append = TRUE)
+  }
+}
+
+updateLinkTable <- function(con, df, sys_source, return_eid){
+  df <- df |> 
+    mutate(
+      system_source = sys_source,
+      event_num = as.character(event_num))
+  DBI::dbWriteTable(
+    conn = con, 
+    'link_table', 
+    df |> select(event_num,event_date, system_source), 
+    append = TRUE)
+  if(return_eid){
+    # pull all eid's for update events
+    t <- tbl(con, 'link_table')
+    eids <- t  |> collect() |> # this is lazy at it pulls entire talbe, but...
+      filter(system_source == !!sys_source) |>
+      filter(event_num %in% unique(df$event_num)) |>
+      select(eid, event_num)
+    df <- df |> 
+      left_join(eids, by = 'event_num') |> 
+      relocate(eid) |> 
+      select(-system_source)
+    return(df)
+  }
+} 
+
+get_eids <- function(con, df, sys_source) {
+  # pull all eid's for update events
+  t <- tbl(con, 'link_table')
+  eids <- t  |> collect() |> # this is lazy at it pulls entire talbe, but...
+    filter(system_source == !!sys_source) |>
+    filter(event_num %in% unique(df$event_num)) |>
+    select(eid, event_num)
+  df <- df |> 
+    left_join(eids, by = 'event_num') |> 
+    relocate(eid)
+  return(df)
+}
+
+create_embeddings_table <- function(con) {
+  DBI::dbExecute(conn = con, "CREATE EXTENSION IF NOT EXISTS vector")
+  DBI::dbExecute(conn = con, "CREATE TABLE embeddings (eid uuid PRIMARY KEY, embedding vector(768), CONSTRAINT fk_eid FOREIGN KEY(eid) REFERENCES link_table(eid))")
+}
+
+# fixing lack of system source in link_table
+# t <- tbl(con, 'link_table')
+# system_source <- 'nrc'
+# for (event_num in unique(nrc_df$event_num)) {
+#   q <- DBI::sqlInterpolate(con,"UPDATE link_table SET system_source = ?system_source WHERE event_num = ?event_num;",
+#                            system_source = system_source, #DBI::dbQuoteIdentifier(con,system_source),
+#                            event_num = event_num )#DBI::dbQuoteIdentifier(con,event_num))
+#   DBI::dbExecute(conn = con, q)
+# }
+
+################################################################
+###################
+################### Funcs for embeddings
+################### 
+###################
+################################################################
+
+pgvector.serialize <- function(v) {
+  stopifnot(is.numeric(v))
+  paste0("[", paste(v, collapse=","), "]")
+}
+
+embed_and_save <- function(con, df) {
+  print(Sys.time())
+  for(i in seq(1,nrow(df),1)) {
+    embeddings <- text::textEmbed(
+      texts = df[i,'event_text'],
+      model = "bert-base-uncased",
+      layers = -2,
+      aggregation_from_tokens_to_texts = "mean",
+      aggregation_from_tokens_to_word_types = "mean",
+      keep_token_embeddings = FALSE)
+    embed_to_insert <- data.frame(
+      eid = df[i,'eid'],
+      embedding = apply(embeddings$texts$event_text,1,pgvector.serialize)
+    )
+    DBI::dbAppendTable(conn = con, "embeddings", embed_to_insert)
+  }
+}
+
 
 ################################################################
 ###################

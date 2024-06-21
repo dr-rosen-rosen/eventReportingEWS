@@ -13,7 +13,12 @@ if (load_from_preProcessed_files) {
     source = 'rail') |> 
     mutate(
       data_set = 'rail',
-      num = as.character(row_number())) |> unite('dataSet_num', data_set:num)
+      num = as.character(row_number())) |> unite('dataSet_num', data_set:num) |> 
+    group_by(event_num) |>
+    mutate(event_num_2 = paste0(cur_group(),"_",row_number())) |> ungroup() |>
+    rename(event_num_orig = event_num, event_num = event_num_2) |>
+    relocate(event_num_orig, .after = last_col()) |>
+    relocate(event_num)
     
   nrc_df <- harmonize_key_vars(
     df = read.csv(here::here(config$nrc_data_path,'nrc_dict_df.csv')),
@@ -27,7 +32,12 @@ if (load_from_preProcessed_files) {
     source = 'asrs') |> 
     mutate(
       data_set = 'nrc',
-      num = as.character(row_number())) |> unite('dataSet_num', data_set:num)
+      num = as.character(row_number())) |> unite('dataSet_num', data_set:num) |> 
+    group_by(event_num) |>
+    mutate(event_num_2 = paste0(cur_group(),"_",row_number())) |> ungroup() |>
+    rename(event_num_orig = event_num, event_num = event_num_2) |>
+    relocate(event_num_orig, .after = last_col()) |>
+    relocate(event_num)
   
   phmsa_df <- harmonize_key_vars(
     df = read.csv(here::here(config$phmsa_data_path,'phmsa_dict_df.csv')),

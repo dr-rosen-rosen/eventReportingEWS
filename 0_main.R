@@ -23,6 +23,7 @@ source('1_funcs.R')
 # Build all event measure dataframes
 load_from_preProcessed_files <- TRUE # if false takes a long time to re-run PV
 source('1_get_and_clean_and_code_all_events.R')
+beepr::beep()
 
 
 ##################################################

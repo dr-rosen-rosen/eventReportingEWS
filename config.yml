@@ -9,10 +9,11 @@ default:
   personal_values_dict: 'personal_values.dic'
   wwpb_wellbeing: 'wwbp_wellbeing.csv'
 calculon:
-  # db_name: 'phmsa_events'
-  # port: 5432
-  # db_user: 'postgres'
-  # db_pw: 'supahUsah'
+  db_name: 'event_reporting'
+  dbUser: 'postgres'
+  dbPW: 'LetMeIn21'
+  db_host: '192.168.7.212'
+  dbPort: 5424
   dict_file_path: '/Volumes/calculon/closed_voc_dictionaries'
   nrc_data_path: '/Volumes/calculon/event_reporting/nrc'
   nrc_events_file: 'event_reports_nrc.csv'
