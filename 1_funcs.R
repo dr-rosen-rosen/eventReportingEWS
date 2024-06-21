@@ -404,6 +404,10 @@ pgvector.serialize <- function(v) {
   paste0("[", paste(v, collapse=","), "]")
 }
 
+pgvector.unserialize <- function(v) {
+  lapply(strsplit(substring(v, 2, nchar(v) - 1), ","), as.numeric)
+}
+
 embed_and_save <- function(con, df) {
   print(Sys.time())
   for(i in seq(1,nrow(df),1)) {
