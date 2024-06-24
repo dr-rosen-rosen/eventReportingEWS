@@ -401,11 +401,11 @@ create_embeddings_table <- function(con) {
 
 pgvector.serialize <- function(v) {
   stopifnot(is.numeric(v))
-  paste0("[", paste(v, collapse=","), "]")
+  return(paste0("[", paste(v, collapse=","), "]"))
 }
 
 pgvector.unserialize <- function(v) {
-  lapply(strsplit(substring(v, 2, nchar(v) - 1), ","), as.numeric)
+  return(lapply(strsplit(substring(v, 2, nchar(v) - 1), ","), as.numeric))
 }
 
 embed_and_save <- function(con, df) {
@@ -423,6 +423,66 @@ embed_and_save <- function(con, df) {
       embedding = apply(embeddings$texts$event_text,1,pgvector.serialize)
     )
     DBI::dbAppendTable(conn = con, "embeddings", embed_to_insert)
+  }
+}
+
+get_cos_sim <- function(x,y) {
+  # This works on the text string pulled from pg_vector
+  if (is.na(x) | is.na(y)) {
+    return(NA)
+  } else {
+    return(
+      as.numeric(lsa::cosine(
+        unlist(pgvector.unserialize(x)),
+        unlist(pgvector.unserialize(y)))
+      ))}
+}
+
+rolling_vec_mean <- function(x) {
+  # x <- x |>
+  #   mutate(embedding = pgvector.unserialize(embedding))
+  # this unpacks the char so each row has a column for each embedding value
+  # then takes colmeans and repacks it into a char
+
+  df <- as.data.frame(
+    do.call(
+      rbind,
+      pgvector.unserialize(x)))
+  return(
+    pgvector.serialize(
+      unname(colMeans(df))
+    )
+  )
+}
+
+get_rw_cs <- function(df,winSize,vCol) {
+  if (winSize > 1 & winSize < (nrow(df)/2)) {
+    df$rw_mean <- runner::runner(
+      x = df[,vCol],
+      k = winSize,
+      f = rolling_vec_mean,
+      na_pad = TRUE
+    )
+    df <- df |>
+      mutate(
+        rw_mean_lag = lag(rw_mean)
+      ) |>
+      rowwise() |>
+      mutate('cos_sim_rw_{winSize}' := get_cos_sim(!!sym(vCol),rw_mean_lag)) |>
+      ungroup()
+    return(df)
+  } else if (winSize == 1) {
+    df <- df |>
+      mutate(
+        lag = lag(!!sym(vCol))
+      ) |>
+      rowwise() |>
+      mutate(cos_sim = get_cos_sim(!!sym(vCol),lag)) |> 
+      ungroup()
+    return(df)
+  } else {
+    print('not valid winSize')
+    return(NA)
   }
 }
 
