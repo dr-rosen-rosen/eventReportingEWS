@@ -14,6 +14,7 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
                       port = config$dbPort
 )
 
+
 q <- DBI::sqlInterpolate(
   conn = con,
   glue::glue_sql(
@@ -21,7 +22,7 @@ q <- DBI::sqlInterpolate(
   raw_table = DBI::dbQuoteIdentifier(con, 'nrc_raw'),
   sys = 'nrc'
 )
-nrc_embeds <- DBI::dbGetQuery(conn = con, q) 
+nrc_embeds <- DBI::dbGetQuery(conn = con, q)
 # saveRDS(nrc_embeds,'nrc_embeds.rds')
 
 # Create

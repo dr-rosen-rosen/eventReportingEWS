@@ -33,10 +33,10 @@ embed_and_save(
   df = rail_df2 #[1,]  # nrc_df, asrs, and phmsa already done
 )
 
-embeddings <- text::textEmbed(
-  texts = asrs_df[1,'event_text'],
-  model = "bert-base-uncased",
-  layers = -2,
-  aggregation_from_tokens_to_texts = "mean",
-  aggregation_from_tokens_to_word_types = "mean",
-  keep_token_embeddings = FALSE)
+# embeddings <- text::textEmbed(
+#   texts = asrs_df[1,'event_text'],
+#   model = "bert-base-uncased",
+#   layers = -2,
+#   aggregation_from_tokens_to_texts = "mean",
+#   aggregation_from_tokens_to_word_types = "mean",
+#   keep_token_embeddings = FALSE)

@@ -291,14 +291,16 @@ harmonize_key_vars <- function(df, source) {
 ###################
 ################################################################
 
-insert_new_column <- function(con, table, column_name, column_type) {
+insert_new_column <- function(con, table, column_name, column_type, vec_len) {
   print(glue::glue("Attempting to insert {column_name} as {column_type}"))
-  stmt <- glue::glue("ALTER TABLE ?table ADD COLUMN IF NOT EXISTS ?column_name {column_type};")
+  column_type <- if_else(is.na(vec_len), column_type, paste0('vector(',vec_len,')'))
+  stmt <- glue::glue(
+    "ALTER TABLE ?table ADD COLUMN IF NOT EXISTS ?column_name {column_type};")
   q <- DBI::sqlInterpolate(
     conn = con, 
     stmt, 
     table= DBI::dbQuoteIdentifier(con, table), 
-    column_name= DBI::dbQuoteIdentifier(con, column_name)
+    column_name = DBI::dbQuoteIdentifier(con, column_name)
     )
   print(q)
   DBI::dbExecute(conn = con, q)
@@ -362,15 +364,27 @@ updateLinkTable <- function(con, df, sys_source, return_eid){
       select(-system_source)
     return(df)
   }
-} 
+}
 
 get_eids <- function(con, df, sys_source) {
   # pull all eid's for update events
-  t <- tbl(con, 'link_table')
-  eids <- t  |> collect() |> # this is lazy at it pulls entire talbe, but...
-    filter(system_source == !!sys_source) |>
-    filter(event_num %in% unique(df$event_num)) |>
+  
+  q <- DBI::sqlInterpolate(
+    conn = con,
+    glue::glue_sql(
+      "SELECT * FROM link_table as lt WHERE (lt.system_source = ?sys) AND (lt.event_num IN {event_nums});"),
+    event_nums = unique(df$event_num),
+    sys = sys_source
+  )
+  eids <- DBI::dbGetQuery(conn = con, q) |>
     select(eid, event_num)
+  
+  # t <- tbl(con, 'link_table')
+  # eids <- t  |> collect() |> # this is lazy at it pulls entire talbe, but...
+  #   filter(system_source == !!sys_source) |>
+  #   filter(event_num %in% unique(df$event_num)) |>
+  #   select(eid, event_num)
+  
   df <- df |> 
     left_join(eids, by = 'event_num') |> 
     relocate(eid)
@@ -380,6 +394,23 @@ get_eids <- function(con, df, sys_source) {
 create_embeddings_table <- function(con) {
   DBI::dbExecute(conn = con, "CREATE EXTENSION IF NOT EXISTS vector")
   DBI::dbExecute(conn = con, "CREATE TABLE embeddings (eid uuid PRIMARY KEY, embedding vector(768), CONSTRAINT fk_eid FOREIGN KEY(eid) REFERENCES link_table(eid))")
+}
+
+insert_vec <- function(r,con, col_name, sys_source) {
+  vec <- r[1,col_name]
+  event_num = r[1,'event_num']
+  s <- DBI::sqlInterpolate(
+    conn = con,
+    glue::glue(
+      "UPDATE embeddings SET ?col_name = ?vec WHERE eid = (SELECT eid FROM link_table WHERE link_table.system_source = ?sys_source AND link_table.event_num = ?event_num);"),
+    col_name = DBI::dbQuoteIdentifier(con, col_name),
+    vec = DBI::dbQuoteLiteral(con, vec),
+    sys_source = DBI::dbQuoteLiteral(con, sys_source),
+    event_num = DBI::dbQuoteLiteral(con, event_num)
+  )
+  print(s)
+  DBI::dbExecute(conn = con, statement = s)
+  NULL
 }
 
 # fixing lack of system source in link_table
@@ -406,6 +437,17 @@ pgvector.serialize <- function(v) {
 
 pgvector.unserialize <- function(v) {
   return(lapply(strsplit(substring(v, 2, nchar(v) - 1), ","), as.numeric))
+}
+
+dict_to_vec <- function(df, serialize) {
+  # creates a single vector from row of dataframes for storing in pgvector
+  v <- apply(df,2,unlist)
+  print(str(v))
+  v <- unname(v)
+  if(serialize) {
+    v <- apply(v,1,pgvector.serialize)
+  }
+  return(v)
 }
 
 embed_and_save <- function(con, df) {
