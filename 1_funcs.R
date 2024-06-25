@@ -399,6 +399,7 @@ create_embeddings_table <- function(con) {
 insert_vec <- function(r,con, col_name, sys_source) {
   vec <- r[1,col_name]
   event_num = r[1,'event_num']
+  print(glue::glue('{event_num} : {col_name} : {sys_source} : {vec}'))
   s <- DBI::sqlInterpolate(
     conn = con,
     glue::glue(

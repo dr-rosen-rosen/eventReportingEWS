@@ -16,7 +16,7 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
 insert_new_column(
   con = con, 
   table = 'embeddings', 
-  column_name = 'gi_vec', 
+  column_name = 'gi_vec', #'liwc_vec'
   column_type = 'vector', 
   vec_len = length(rail_df |> select(starts_with("gi_")))
 )
@@ -26,9 +26,16 @@ insert_new_column(
 #   nrc_df[,grepl("^gi_",names(nrc_df))],
 #   serialize = TRUE)
 # # save as vector in db
-# by(nrc_df, seq_len(nrow(nrc_df)), insert_vec, con = con, sys_source = 'nrc', col_name = 'gi_vec')
+
+# which(nrc_df == '55550', arr.ind = TRUE)
+# nrc_df2 <- nrc_df |> slice(10644:n())
+# by(nrc_df2, seq_len(nrow(nrc_df2)), insert_vec, con = con, sys_source = 'nrc', col_name = 'gi_vec')
+# rm(nrc_df2)
+
+
 
 # serialize for storage
+asrs_df <- as.data.frame(asrs_df)
 asrs_df$gi_vec <- dict_to_vec(
   asrs_df[,grepl("^gi_",names(asrs_df))],
   serialize = TRUE)
@@ -36,6 +43,7 @@ asrs_df$gi_vec <- dict_to_vec(
 by(asrs_df, seq_len(nrow(asrs_df)), insert_vec, con = con, sys_source = 'asrs', col_name = 'gi_vec')
 
 # serialize for storage
+rail_df <- as.data.frame(rail_df)
 rail_df$gi_vec <- dict_to_vec(
   rail_df[,grepl("^gi_",names(rail_df))],
   serialize = TRUE)
@@ -43,6 +51,7 @@ rail_df$gi_vec <- dict_to_vec(
 by(rail_df, seq_len(nrow(rail_df)), insert_vec, con = con, sys_source = 'rail', col_name = 'gi_vec')
 
 # serialize for storage
+phmsa_df <- as.data.frame(phmsa_df)
 phmsa_df$gi_vec <- dict_to_vec(
   phmsa_df[,grepl("^gi_",names(phmsa_df))],
   serialize = TRUE)
