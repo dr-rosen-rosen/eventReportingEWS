@@ -69,14 +69,13 @@ insert_new_column(
 )
 
 # serialize for storage
-# nrc_df$gi_vec <- dict_to_vec(
-#   nrc_df[,grepl("^gi_",names(nrc_df))],
-#   serialize = TRUE)
+nrc_df$liwc_vec <- dict_to_vec(
+  nrc_df[,grepl("^liwc_",names(nrc_df))],
+  serialize = TRUE)
 # # save as vector in db
-
 # which(nrc_df == '55550', arr.ind = TRUE)
 # nrc_df2 <- nrc_df |> slice(10644:n())
-# by(nrc_df2, seq_len(nrow(nrc_df2)), insert_vec, con = con, sys_source = 'nrc', col_name = 'gi_vec')
+by(nrc_df, seq_len(nrow(nrc_df)), insert_vec, con = con, sys_source = 'nrc', col_name = 'liwc_vec')
 # rm(nrc_df2)
 
 # serialize for storage
