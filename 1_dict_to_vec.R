@@ -115,10 +115,10 @@ dict_map <- readxl::read_excel('/Volumes/calculon/event_reporting/dictionary_map
 features <- unique(dict_map$var_name)
 length(features)
 
-nrc_dict_df2 <- nrc_df |> select(all_of(c(features,key_vars)))
-rail_dict_df2 <- rail_df |> select(all_of(c(features,key_vars)))
-asrs_dict_df2 <- asrs_df |> select(all_of(c(features,key_vars)))
-phmsa_dict_df2 <- phmsa_df |> select(all_of(c(features,key_vars)))
+nrc_dict_df2 <- nrc_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'nrc')
+rail_dict_df2 <- rail_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'rail')
+asrs_dict_df2 <- asrs_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'asrs')
+phmsa_dict_df2 <- phmsa_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'phmsa')
 
 cmb_df <- bind_rows(nrc_dict_df2,rail_dict_df2,asrs_dict_df2,phmsa_dict_df2) |>
   rowwise() |>
@@ -144,15 +144,27 @@ cmb_df_cln <- cmb_df |>
   select(where(is.numeric)) |>
   select(where(~any(sd(., na.rm = TRUE) != 0))) |> # drops any variable with NO variation
   select(where(~any(mad(.,na.rm = TRUE) != 0))) |> # drops any variable with MAD of 0
+  rename_with(.fn = ~ paste0("comp_clim_",.x)) |>
   mutate(
-    dataSet_num = cmb_df$dataSet_num)
+    dataSet_num = cmb_df$dataSet_num,
+    event_num = cmb_df$event_num,
+    sys_source = cmb_df$sys_source)
 ncol(cmb_df_cln)
+
+# create column if not exists
+insert_new_column(
+  con = con, 
+  table = 'embeddings', 
+  column_name = 'composite_climate_vec',
+  column_type = 'vector', 
+  vec_len = length(cmb_df_cln |> select(starts_with("comp_clim_")))
+)
 
 # serialize for storage
 cmb_df_cln <- as.data.frame(cmb_df_cln)
 cmb_df_cln$composite_climate_vec <- dict_to_vec(
-  phmsa_df[,grepl("^liwc_",names(phmsa_df))], ############## need to figure out indexing; probalby by position
+  cmb_df_cln[,grepl("^comp_clim_",names(cmb_df_cln))], ############## need to figure out indexing; probalby by position
   serialize = TRUE)
 # save as vector in db
 ############## need to figure out how to pass sys_source; probably from row and not by passing variable in (add it above)
-by(phmsa_df, seq_len(nrow(phmsa_df)), insert_vec, con = con, sys_source = 'phmsa', col_name = 'composite_climate_vec')
+by(cmb_df_cln, seq_len(nrow(cmb_df_cln)), insert_vec, con = con, col_name = 'composite_climate_vec')

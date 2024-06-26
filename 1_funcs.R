@@ -396,9 +396,10 @@ create_embeddings_table <- function(con) {
   DBI::dbExecute(conn = con, "CREATE TABLE embeddings (eid uuid PRIMARY KEY, embedding vector(768), CONSTRAINT fk_eid FOREIGN KEY(eid) REFERENCES link_table(eid))")
 }
 
-insert_vec <- function(r,con, col_name, sys_source) {
+insert_vec <- function(r,con, col_name) {
   vec <- r[1,col_name]
   event_num = r[1,'event_num']
+  sys_source = r[1,'sys_source']
   print(glue::glue('{event_num} : {col_name} : {sys_source} : {vec}'))
   s <- DBI::sqlInterpolate(
     conn = con,
