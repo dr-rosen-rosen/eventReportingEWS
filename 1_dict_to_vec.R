@@ -48,6 +48,7 @@ by(asrs_df, seq_len(nrow(asrs_df)), insert_vec, con = con, sys_source = 'asrs', 
 #   serialize = TRUE)
 # # save as vector in db
 # by(rail_df, seq_len(nrow(rail_df)), insert_vec, con = con, sys_source = 'rail', col_name = 'gi_vec')
+# !!!!!!!! Stopped at: 0415LK012_1
 
 # serialize for storage
 phmsa_df <- as.data.frame(phmsa_df)
@@ -101,3 +102,57 @@ phmsa_df$liwc_vec <- dict_to_vec(
   serialize = TRUE)
 # save as vector in db
 by(phmsa_df, seq_len(nrow(phmsa_df)), insert_vec, con = con, sys_source = 'phmsa', col_name = 'liwc_vec')
+
+
+##################################################
+##############
+############## Read in and combine data across all reporting systems
+##############
+##################################################
+dict_map <- readxl::read_excel('/Volumes/calculon/event_reporting/dictionary_mappiings.xlsx') |>
+  filter(is.na(drop)) |>
+  unite('var_name',prefix:variables, sep = '')
+features <- unique(dict_map$var_name)
+length(features)
+
+nrc_dict_df2 <- nrc_df |> select(all_of(c(features,key_vars)))
+rail_dict_df2 <- rail_df |> select(all_of(c(features,key_vars)))
+asrs_dict_df2 <- asrs_df |> select(all_of(c(features,key_vars)))
+phmsa_dict_df2 <- phmsa_df |> select(all_of(c(features,key_vars)))
+
+cmb_df <- bind_rows(nrc_dict_df2,rail_dict_df2,asrs_dict_df2,phmsa_dict_df2) |>
+  rowwise() |>
+  mutate(across(.cols = starts_with('gi_'), ~ .x / liwc_WC)) |> # change GI vars from counts to proportions
+  ungroup() |> select(-liwc_WC)
+skimr::skim(cmb_df)
+
+##################################################
+##############
+############## Clean and store
+##############
+##################################################
+nearZeroVars <- caret::nearZeroVar(
+  cmb_df,
+  # freqCut = 
+  allowParallel = TRUE, foreach = TRUE, saveMetrics = FALSE, names = TRUE)
+length(nearZeroVars)
+# cmb_df |> select(one_of(nearZeroVars)) |>
+#   skimr::skim()
+
+cmb_df_cln <- cmb_df |>
+  select(-one_of(nearZeroVars)) |>
+  select(where(is.numeric)) |>
+  select(where(~any(sd(., na.rm = TRUE) != 0))) |> # drops any variable with NO variation
+  select(where(~any(mad(.,na.rm = TRUE) != 0))) |> # drops any variable with MAD of 0
+  mutate(
+    dataSet_num = cmb_df$dataSet_num)
+ncol(cmb_df_cln)
+
+# serialize for storage
+cmb_df_cln <- as.data.frame(cmb_df_cln)
+cmb_df_cln$composite_climate_vec <- dict_to_vec(
+  phmsa_df[,grepl("^liwc_",names(phmsa_df))], ############## need to figure out indexing; probalby by position
+  serialize = TRUE)
+# save as vector in db
+############## need to figure out how to pass sys_source; probably from row and not by passing variable in (add it above)
+by(phmsa_df, seq_len(nrow(phmsa_df)), insert_vec, con = con, sys_source = 'phmsa', col_name = 'composite_climate_vec')
