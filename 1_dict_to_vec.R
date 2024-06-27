@@ -34,22 +34,26 @@ insert_new_column(
 # rm(nrc_df2)
 
 # serialize for storage
-asrs_df <- as.data.frame(asrs_df)
-asrs_df$gi_vec <- dict_to_vec(
-  asrs_df[,grepl("^gi_",names(asrs_df))],
-  serialize = TRUE)
-# save as vector in db
-by(asrs_df, seq_len(nrow(asrs_df)), insert_vec, con = con, sys_source = 'asrs', col_name = 'gi_vec')
-
-# serialize for storage
-# rail_df <- as.data.frame(rail_df)
-# rail_df$gi_vec <- dict_to_vec(
-#   rail_df[,grepl("^gi_",names(rail_df))],
+# asrs_df <- as.data.frame(asrs_df)
+# asrs_df$gi_vec <- dict_to_vec(
+#   asrs_df[,grepl("^gi_",names(asrs_df))],
 #   serialize = TRUE)
 # # save as vector in db
-# by(rail_df, seq_len(nrow(rail_df)), insert_vec, con = con, sys_source = 'rail', col_name = 'gi_vec')
+# by(asrs_df, seq_len(nrow(asrs_df)), insert_vec, con = con, sys_source = 'asrs', col_name = 'gi_vec')
+
+# serialize for storage
+rail_df <- as.data.frame(rail_df)
+rail_df$gi_vec <- dict_to_vec(
+  rail_df[,grepl("^gi_",names(rail_df))],
+  serialize = TRUE)
+# # save as vector in db
 # !!!!!!!! Stopped at: 0415LK012_1
-which(nrc_df == '0415LK012_1', arr.ind = TRUE)
+# which(rail_df == '0415LK012_1', arr.ind = TRUE)
+rail_df2 <- rail_df |> 
+  mutate(sys_source = 'rail') |>
+  slice(4704:n())
+by(rail_df2, seq_len(nrow(rail_df2)), insert_vec, con = con, col_name = 'gi_vec')
+
 
 # serialize for storage
 phmsa_df <- as.data.frame(phmsa_df)
