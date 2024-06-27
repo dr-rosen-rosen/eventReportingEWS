@@ -49,6 +49,7 @@ by(asrs_df, seq_len(nrow(asrs_df)), insert_vec, con = con, sys_source = 'asrs', 
 # # save as vector in db
 # by(rail_df, seq_len(nrow(rail_df)), insert_vec, con = con, sys_source = 'rail', col_name = 'gi_vec')
 # !!!!!!!! Stopped at: 0415LK012_1
+which(nrc_df == '0415LK012_1', arr.ind = TRUE)
 
 # serialize for storage
 phmsa_df <- as.data.frame(phmsa_df)
