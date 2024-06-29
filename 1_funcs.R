@@ -505,14 +505,14 @@ get_rw_cs <- function(df,winSize,vCol) {
       x = df[,vCol],
       k = winSize,
       f = rolling_vec_mean,
-      na_pad = TRUE
+      na_pad = FALSE
     )
     df <- df |>
       mutate(
         rw_mean_lag = lag(rw_mean)
       ) |>
       rowwise() |>
-      mutate('cos_sim_rw_{winSize}' := get_cos_sim(!!sym(vCol),rw_mean_lag)) |>
+      mutate('cos_sim_rw_{vCol}_{winSize}' := get_cos_sim(!!sym(vCol),rw_mean_lag)) |>
       ungroup()
     return(df)
   } else if (winSize == 1) {
@@ -521,7 +521,7 @@ get_rw_cs <- function(df,winSize,vCol) {
         lag = lag(!!sym(vCol))
       ) |>
       rowwise() |>
-      mutate(cos_sim = get_cos_sim(!!sym(vCol),lag)) |> 
+      mutate('cos_sim_rw_{vCol}_{winSize}' := get_cos_sim(!!sym(vCol),lag)) |> 
       ungroup()
     return(df)
   } else {
@@ -530,6 +530,44 @@ get_rw_cs <- function(df,winSize,vCol) {
   }
 }
 
+################################################################
+###################
+################### Functions for pulling and manipulating vector
+################### 
+###################
+################################################################
+
+
+# pull, clean, and structure vectors
+
+get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, con) {
+  q <- DBI::sqlInterpolate(
+    conn = con,
+    glue::glue(
+      "SELECT et.eid, et.{vCol}, rt.facility, rt.event_date2 FROM embeddings as et LEFT JOIN link_table as lt USING (eid) LEFT JOIN ?raw_table as rt USING (eid) WHERE lt.system_source = ?sys;"),
+    raw_table = DBI::dbQuoteIdentifier(con, paste0(sys_source,'_raw')),
+    sys = sys_source
+  )
+  
+  vec_df <- DBI::dbGetQuery(conn = con, q) 
+  print(head(vec_df,10))
+  vec_df <- vec_df|>
+    group_by(facility) |>
+    filter(n() >= 100) |> # drop facilities with low n
+    ungroup() |>
+    mutate(event_date2 = lubridate::ymd(event_date2)) |>
+    filter(between(lubridate::year(event_date2),1999,2023)) |> 
+    group_by(facility) |>
+    arrange(event_date2, .by_group = TRUE) |>
+    group_modify(
+      ~ get_rw_cs(
+        df = .x,
+        winSize = winSize,
+        vCol = vCol
+      )
+    ) |> ungroup()
+  return(vec_df)
+}
 
 ################################################################
 ###################

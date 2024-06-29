@@ -166,9 +166,11 @@ insert_new_column(
 )
 
 # serialize for storage
-cmb_df_cln <- as.data.frame(cmb_df_cln)
+cmb_df_cln <- as.data.frame(cmb_df_cln) |> drop_na()
 cmb_df_cln$composite_climate_vec <- dict_to_vec(
   cmb_df_cln[,grepl("^comp_clim_",names(cmb_df_cln))], ############## need to figure out indexing; probalby by position
   serialize = TRUE)
 # save as vector in db
 ############## need to figure out how to pass sys_source; probably from row and not by passing variable in (add it abov
+by(cmb_df_cln, seq_len(nrow(cmb_df_cln)), insert_vec, con = con, col_name = 'composite_climate_vec')
+
