@@ -71,3 +71,18 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
 #   table_name = "phmsa_raw",
 #   update_values = TRUE)
 
+# psn
+
+psn_df <- ...
+psn_df <- updateLinkTable(
+    con = con,
+    df = psn_df,
+    sys_source = 'psn',
+    return_eid = TRUE
+  )
+
+create_raw_table(
+  con = con,
+  df = psn_df, # update end point
+  table_name = "psn_raw",
+  update_values = TRUE)
