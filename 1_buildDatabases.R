@@ -73,7 +73,11 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
 
 # psn
 
-psn_df <- ...
+psn_df <- readxl::read_excel('/Volumes/LaCie/event_ews/old_psn.xlsx') 
+psn_df <- harmonize_key_vars(
+  df = psn_df,
+  source = 'psn') |> 
+  janitor::clean_names()
 psn_df <- updateLinkTable(
     con = con,
     df = psn_df,

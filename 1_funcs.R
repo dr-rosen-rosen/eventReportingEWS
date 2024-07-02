@@ -254,7 +254,6 @@ get_and_clean_and_code_phmsa <- function(f,add_liwc,add_emo_voc,add_butter,add_m
       ))
   }
   if(add_pv){
-
     df$cmbd_narrative <- as.character(df$cmbd_narrative)
     df$PV_aux_pas <- getPassiveVoice(df = df, text_col = 'cmbd_narrative',ratio = TRUE)
     spacyr::spacy_finalize()
@@ -272,6 +271,8 @@ harmonize_key_vars <- function(df, source) {
     key <- c(event_date = 'event_date',event_num = 'event_num')
   } else if (source == 'phmsa') {
     key <- c(event_date = 'date',event_num = 'report_no', event_text = 'cmbd_narrative')#cmbd_narrative = 'event_text')
+  } else if (source == 'psn') {
+    key <- (event_date = 'FLR_SUBMIT_DATE',event_num = 'Report_ID', event_text = 'Narrative_merged')
   }
   if (exists('key')) {
     return(
