@@ -35,3 +35,8 @@ calculon:
   phmsa_liwc_file: 'LIWC-22 Results - phmsa_reports_combined_03-11-2___ - LIWC Analysis.csv'
   phmsa_emo_voc_file: 'phmsa_BUTTER-CSVOutput.csv'
   phmsa_butter_file: 'ALL_TARGET_DICTS_PHMSA_BUTTER-CSVOutput.csv'
+  psn_data_path: '/Volumes/calculon/event_reporting/psn'
+  psn_events_file: 'old_psn.csv'
+  psn_liwc_file: 'LIWC-22 Results - old_psn - LIWC Analysis.csv'
+  psn_emo_voc_file: 'BUTTER-CSV_emoVoc_Output.csv'
+  psn_butter_file: 'BUTTER-CSV_All_target_dictionaries_Output.csv'

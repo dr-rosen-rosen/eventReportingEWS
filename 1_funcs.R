@@ -261,6 +261,58 @@ get_and_clean_and_code_phmsa <- function(f,add_liwc,add_emo_voc,add_butter,add_m
   return(df)
 }
 
+get_and_clean_and_code_psn <- function(f,add_liwc,add_emo_voc,add_butter,add_multiple_dict_scores,add_pv) {
+  df <- read.csv(f)
+  if(!is.na(add_liwc)) {
+    df_liwc <- read.csv(add_liwc) |>
+      select(all_of(c('Report_ID',liwc_vars))) |>
+      rename_with(.cols = all_of(liwc_vars), .fn = ~ paste0("liwc_", .x))
+    df <- df |> left_join(
+      df_liwc, by = 'Report_ID')# |> 
+    # select(all_of(liwc_vars)) |>
+    # rename_with(~ paste0("liwc_", .x))
+  }
+  if(!is.na(add_emo_voc)) {
+    df <- df |> bind_cols(
+      read.csv(add_emo_voc)|> select(all_of(emo_voc_vars)) |>
+        rename_with(~ paste0("emo_voc_", .x))
+    )
+  }
+  if(!is.na(add_butter)) {
+    df <- df |> bind_cols(
+      (read.csv(add_butter) |> select(-TextID,-Segment,-SegmentID,-TokenCount))
+    )
+  }
+  df <- df |> 
+    filter(
+      !is.na(Narrative_merged), 
+      Narrative_merged != '', 
+      utf8::utf8_valid(Narrative_merged))
+  if(add_multiple_dict_scores){
+    df <- getMultipleDictionaryScores(
+      df = df, 
+      text_col = 'Narrative_merged',
+      dict_file_path = config$dict_file_path, 
+      dict_list = list(
+        # 'ag_co' = config$agen_com_dict,
+        'gi' = config$general_inquir#,
+        # 'pro_so' = config$prosocial_dict,
+        # 'stress' = config$stress_dict,
+        # 'tms' = config$tms_streng_dict,
+        # 'uncert' = config$uncertainty_dict#,
+        # 'per_val' = config$personal_values_dict#,
+        # 'wllbng' = config$wwpb_wellbeing
+      ))
+  }
+  if(add_pv){
+    df$Narrative_merged <- as.character(df$Narrative_merged)
+    df$PV_aux_pas <- getPassiveVoice(df = df, text_col = 'Narrative_merged',ratio = TRUE)
+    spacyr::spacy_finalize()
+  }
+  return(df)
+}
+
+
 harmonize_key_vars <- function(df, source) {
   #creates 
   if (source == 'asrs') {

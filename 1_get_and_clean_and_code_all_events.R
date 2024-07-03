@@ -45,6 +45,14 @@ if (load_from_preProcessed_files) {
     mutate(
       data_set = 'phmsa',
       num = as.character(row_number())) |> unite('dataSet_num', data_set:num)
+  
+  psn_df <- harmonize_key_vars(
+    df = read.csv(here::here(config$psn_data_path,'psn_dict_df.csv')),
+    source = 'psn') |> 
+    mutate(
+      data_set = 'psn',
+      num = as.character(row_number())) |> unite('dataSet_num', data_set:num)
+  
 } else {
   rail_df <- get_and_clean_and_code_rail_events(
     f = here::here(config$rail_data_path,config$rail_events_file),
@@ -85,5 +93,14 @@ if (load_from_preProcessed_files) {
     add_pv = TRUE)
   write.csv(asrs_df, here::here(config$asrs_data_path,'asrs_dict_df.csv'))
   # skimr::skim(nrc_df)
+  
+  psn_df <- get_and_clean_and_code_psn(
+    f = here::here(config$psn_data_path,config$psn_events_file),
+    add_liwc = here::here(config$psn_data_path,config$psn_liwc_file),
+    add_emo_voc = here::here(config$psn_data_path,config$psn_emo_voc_file),
+    add_butter = here::here(config$psn_data_path,config$psn_butter_file),
+    add_multiple_dict_scores = TRUE,
+    add_pv = TRUE)
+  write.csv(psn_df, here::here(config$psn_data_path,'psn_dict_df.csv'))
 }
 
