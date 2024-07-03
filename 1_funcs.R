@@ -254,7 +254,6 @@ get_and_clean_and_code_phmsa <- function(f,add_liwc,add_emo_voc,add_butter,add_m
       ))
   }
   if(add_pv){
-
     df$cmbd_narrative <- as.character(df$cmbd_narrative)
     df$PV_aux_pas <- getPassiveVoice(df = df, text_col = 'cmbd_narrative',ratio = TRUE)
     spacyr::spacy_finalize()
@@ -272,6 +271,8 @@ harmonize_key_vars <- function(df, source) {
     key <- c(event_date = 'event_date',event_num = 'event_num')
   } else if (source == 'phmsa') {
     key <- c(event_date = 'date',event_num = 'report_no', event_text = 'cmbd_narrative')#cmbd_narrative = 'event_text')
+  } else if (source == 'psn') {
+    key <- (event_date = 'FLR_SUBMIT_DATE',event_num = 'Report_ID', event_text = 'Narrative_merged')
   }
   if (exists('key')) {
     return(
@@ -540,32 +541,55 @@ get_rw_cs <- function(df,winSize,vCol) {
 
 # pull, clean, and structure vectors
 
-get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, con) {
+get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_unit, e_date,con) {
   q <- DBI::sqlInterpolate(
     conn = con,
     glue::glue(
-      "SELECT et.eid, et.{vCol}, rt.facility, rt.event_date2 FROM embeddings as et LEFT JOIN link_table as lt USING (eid) LEFT JOIN ?raw_table as rt USING (eid) WHERE lt.system_source = ?sys;"),
+      "SELECT et.eid, et.{vCol}, rt.{org_unit}, rt.{e_date} FROM embeddings as et LEFT JOIN link_table as lt USING (eid) LEFT JOIN ?raw_table as rt USING (eid) WHERE lt.system_source = ?sys;"),
     raw_table = DBI::dbQuoteIdentifier(con, paste0(sys_source,'_raw')),
     sys = sys_source
   )
+  print(q)
   
-  vec_df <- DBI::dbGetQuery(conn = con, q) 
+  vec_df <- DBI::dbGetQuery(conn = con, q)
   print(head(vec_df,10))
-  vec_df <- vec_df|>
-    group_by(facility) |>
-    filter(n() >= 100) |> # drop facilities with low n
-    ungroup() |>
-    mutate(event_date2 = lubridate::ymd(event_date2)) |>
-    filter(between(lubridate::year(event_date2),1999,2023)) |> 
-    group_by(facility) |>
-    arrange(event_date2, .by_group = TRUE) |>
-    group_modify(
-      ~ get_rw_cs(
-        df = .x,
-        winSize = winSize,
-        vCol = vCol
-      )
-    ) |> ungroup()
+  if (sys_source == 'nrc') {
+    vec_df <- vec_df|>
+      # group_by(facility) |>
+      group_by(!!sym(org_unit)) |>
+      filter(n() >= 100) |> # drop facilities with low n
+      ungroup() |>
+      # mutate(event_date2 = lubridate::ymd(event_date2)) |>
+      # filter(between(lubridate::year(event_date2),1999,2023)) |>
+      mutate(!!sym(e_date) := lubridate::ymd(!!sym(e_date))) |>
+      filter(between(lubridate::year(!!sym(e_date)),1999,2023)) |>
+      group_by(!!sym(org_unit)) |>
+      arrange(!!sym(e_date), .by_group = TRUE) |>
+      group_modify(
+        ~ get_rw_cs(
+          df = .x,
+          winSize = winSize,
+          vCol = vCol
+        )
+      ) |> 
+      ungroup()
+  } else if (sys_source == 'rail') {
+    vec_df <- vec_df|>
+      group_by(!!sym(org_unit)) |>
+      filter(n() >= 100) |> # drop facilities with low n
+      ungroup() |>
+      mutate(!!sym(e_date) := lubridate::mdy(!!sym(e_date))) |>
+      # filter(between(lubridate::year(!!sym(e_date)),1999,2023)) |>
+      group_by(!!sym(org_unit)) |>
+      arrange(!!sym(e_date), .by_group = TRUE) |>
+      group_modify(
+        ~ get_rw_cs(
+          df = .x,
+          winSize = winSize,
+          vCol = vCol
+        )
+      ) |> ungroup()
+  }
   return(vec_df)
 }
 
