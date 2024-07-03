@@ -51,7 +51,7 @@ rail_df$gi_vec <- dict_to_vec(
 # which(rail_df == '0415LK012_1', arr.ind = TRUE)
 rail_df2 <- rail_df |> 
   mutate(sys_source = 'rail') |>
-  slice(4704:n())
+  slice(66640:n())
 by(rail_df2, seq_len(nrow(rail_df2)), insert_vec, con = con, col_name = 'gi_vec')
 
 
