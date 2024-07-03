@@ -73,7 +73,7 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
 
 # psn
 
-psn_df <- readxl::read_excel('/Volumes/LaCie/event_ews/old_psn.xlsx') 
+psn_df <- readxl::read_excel('/Volumes/calculon/event_reporting/psn/old_psn.xlsx') 
 psn_df <- harmonize_key_vars(
   df = psn_df,
   source = 'psn') |> 

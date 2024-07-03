@@ -272,7 +272,7 @@ harmonize_key_vars <- function(df, source) {
   } else if (source == 'phmsa') {
     key <- c(event_date = 'date',event_num = 'report_no', event_text = 'cmbd_narrative')#cmbd_narrative = 'event_text')
   } else if (source == 'psn') {
-    key <- (event_date = 'FLR_SUBMIT_DATE',event_num = 'Report_ID', event_text = 'Narrative_merged')
+    key <- c(event_date = 'FLR_SUBMIT_DATE',event_num = 'Report_ID', event_text = 'Narrative_merged')
   }
   if (exists('key')) {
     return(
@@ -329,7 +329,8 @@ create_raw_table <- function(con,df, table_name, update_values) {
         con = con,
         table = table_name,
         column_name = c,
-        column_type = DBI::dbDataType(con, df[,c])
+        column_type = DBI::dbDataType(con, df[,c]),
+        vec_len = NA
         )
     }
   }

@@ -25,12 +25,12 @@ text::textrpp_initialize(save_profile = TRUE)
 
 # asrs_df <- get_eids(con = con, df = asrs_df |> mutate(sys_source = 'asrs'), sys_source = 'asrs')
 rail_df2 <- get_eids(con = con, df = rail_df |> mutate(sys_source = 'rail'), sys_source = 'rail')
-
+psn_df2 <- psn_df |> select(eid,event_text) |> drop_na()
 
 
 embed_and_save(
   con = con,
-  df = rail_df2 #[1,]  # nrc_df, asrs, and phmsa already done
+  df = psn_df2 #[1,]  # nrc_df, asrs, rail, and phmsa already done
 )
 
 # embeddings <- text::textEmbed(
