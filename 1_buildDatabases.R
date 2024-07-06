@@ -73,20 +73,20 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
 
 # psn
 
-psn_df <- readxl::read_excel('/Volumes/calculon/event_reporting/psn/old_psn.xlsx') 
-psn_df <- harmonize_key_vars(
-  df = psn_df,
-  source = 'psn') |> 
-  janitor::clean_names()
-psn_df <- updateLinkTable(
-    con = con,
-    df = psn_df,
-    sys_source = 'psn',
-    return_eid = TRUE
-  )
-
-create_raw_table(
-  con = con,
-  df = psn_df, # update end point
-  table_name = "psn_raw",
+# psn_df <- readxl::read_excel('/Volumes/calculon/event_reporting/psn/old_psn.xlsx') 
+# psn_df <- harmonize_key_vars(
+#   df = psn_df,
+#   source = 'psn') |> 
+#   janitor::clean_names()
+# psn_df <- updateLinkTable(
+#     con = con,
+#     df = psn_df,
+#     sys_source = 'psn',
+#     return_eid = TRUE
+#   )
+# 
+# create_raw_table(
+#   con = con,
+#   df = psn_df, # update end point
+#   table_name = "psn_raw",
   update_values = TRUE)
