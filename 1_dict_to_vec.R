@@ -124,8 +124,10 @@ nrc_dict_df2 <- nrc_df |> select(all_of(c(features,key_vars))) |> mutate(sys_sou
 rail_dict_df2 <- rail_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'rail')
 asrs_dict_df2 <- asrs_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'asrs')
 phmsa_dict_df2 <- phmsa_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'phmsa')
+psn_df2 <- psn_df |> select(all_of(c(features,key_vars))) |> mutate(sys_source = 'psn')
 
-cmb_df <- bind_rows(nrc_dict_df2,rail_dict_df2,asrs_dict_df2,phmsa_dict_df2) |>
+# cmb_df <- bind_rows(nrc_dict_df2,rail_dict_df2,asrs_dict_df2,phmsa_dict_df2) |>
+cmb_df <- bind_rows(nrc_dict_df2,rail_dict_df2,asrs_dict_df2,phmsa_dict_df2,psn_df2) |>
   rowwise() |>
   mutate(across(.cols = starts_with('gi_'), ~ .x / liwc_WC)) |> # change GI vars from counts to proportions
   ungroup() |> select(-liwc_WC)
