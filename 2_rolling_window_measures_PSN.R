@@ -260,11 +260,11 @@ signal_B_out<-multispatialCCM::SSR_check_signal(A=v_thresh, E=E_B, tau=1,
 # Does A "cause" B?
 #Note - increase iterations to 100 for consistant results
 tictoc::tic()
-CCM_boot_A<-multispatialCCM::CCM_boot(A = v_harm, B = v_thresh, E = E_A, tau=1, iterations=100)
+CCM_boot_A<-multispatialCCM::CCM_boot(A = v_harm, B = v_thresh, E = E_A, tau=1, iterations=10)
 tictoc::toc()
 # Does B "cause" A?
 tictoc::tic()
-CCM_boot_B<-multispatialCCM::CCM_boot(A = v_thresh, B = v_harm, E = E_B, tau=1, iterations=100)
+CCM_boot_B<-multispatialCCM::CCM_boot(A = v_thresh, B = v_harm, E = E_B, tau=1, iterations=10)
 tictoc::toc()
 #Test for significant causal signal
 #See R function for details
