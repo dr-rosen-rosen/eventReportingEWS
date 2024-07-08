@@ -18,22 +18,22 @@ t <- get_clean_vecs(
   vCol = 'composite_climate_vec', 
   minFacilityReport = 100, 
   winSize = 1, 
-  sys_source = 'rail',
-  org_unit = 'reporting_railroad_code', 
+  sys_source = 'psn',
+  org_unit = 'primary_loc_name', 
   e_date = 'event_date',
   con = con) |> select(eid,cos_sim_rw_composite_climate_vec_1)
 u <- get_clean_vecs(
   vCol = 'embedding', 
   minFacilityReport = 100, 
   winSize = 1, 
-  sys_source = 'rail',
-  org_unit = 'reporting_railroad_code', 
+  sys_source = 'psn',
+  org_unit = 'primary_loc_name', 
   e_date = 'event_date',
   con = con)
 
 v <- full_join(t,u, by = 'eid')
 
-rr_codes <- as.data.frame(table(v$reporting_railroad_code))
+primary_locations <- as.data.frame(table(v$primary_loc_name))
 
 
 #########################################################
@@ -42,19 +42,22 @@ rr_codes <- as.data.frame(table(v$reporting_railroad_code))
 #########################################################
 #########################################################
 library(EWSmethods)
+library(future)
+library(furrr)
 
 
-org_unit <- 'reporting_railroad_code'
+org_unit <- 'primary_loc_name'
 e_date <- 'event_date'
-sys_source <- 'rail'
+sys_source <- 'psn'
 
 key <- v |>
   drop_na() |>
-  #select(facility,event_date2,eid,cos_sim_rw_composite_climate_vec_1,cos_sim_rw_embedding_1) |>
   group_by(!!sym(org_unit)) |>
   arrange(!!sym(e_date), .by_group = TRUE) |>
   mutate(t = row_number()) |> ungroup()
-  
+
+tictoc::tic()
+future::plan(multisession, workers = availableCores())
 ews_df2 <- v |>
   drop_na() |>
   select(!!sym(org_unit),!!sym(e_date),cos_sim_rw_composite_climate_vec_1,cos_sim_rw_embedding_1) |>
@@ -64,17 +67,19 @@ ews_df2 <- v |>
   mutate(t = row_number()) |> 
   relocate(t) |> 
   tidyr::nest() |>
-  mutate(ews_results = purrr::map(data, ~EWSmethods::multiEWS(data = .,
-                                                           metrics = c("meanAR","maxAR","meanSD","maxSD","eigenMAF","mafAR","mafSD","pcaAR","pcaSD","eigenCOV","maxCOV","mutINFO"),
-                                                           method = "expanding",
-                                                           burn_in = 50,
-                                                           threshold = 2)))
-saveRDS(ews_df2, "rail_ews_df2.rds")
+  mutate(ews_results = furrr::future_map(data, ~EWSmethods::multiEWS(data = .,
+                                                              metrics = c("meanAR","maxAR","meanSD","maxSD","eigenMAF","mafAR","mafSD","pcaAR","pcaSD","eigenCOV","maxCOV","mutINFO"),
+                                                              method = "expanding",
+                                                              burn_in = 50,
+                                                              threshold = 2)))
+tictoc::toc()
+saveRDS(ews_df2, "psn_ews_df2.rds")
+future::plan(sequential)
 
 ews_df3 <- purrr::pmap_dfr(ews_df2, ~ data.frame(..3$EWS$raw) |>
-                       mutate(!!sym(org_unit) := ..1) |>
-                       group_by(!!sym(org_unit),time) |>
-                       summarise(threshold.crossed.count = sum(threshold.crossed))) |>
+                             mutate(!!sym(org_unit) := ..1) |>
+                             group_by(!!sym(org_unit),time) |>
+                             summarise(threshold.crossed.count = sum(threshold.crossed))) |>
   left_join(key,by = c(org_unit,'time' = 't'))
 
 plot(ews_df2$ews_results[[1]],  y_lab = "Density")
@@ -195,28 +200,27 @@ legend("topleft",
 
 ######### Try with outcomes 
 
-t <- tbl(con,'rail_raw')
-rail_raw <- t  |> collect() |>
+t <- tbl(con,'psn_raw')
+psn_raw <- t  |> collect() |>
   # mutate(scram_recode = if_else(scram_code == 'N',0,1)) |>
-  select(eid,Total.Persons.Killed,Total.Persons.Injured,Total.Damage.Cost) |>
+  select(eid,harm_score) |>
   janitor::clean_names()
-skimr::skim(rail_raw)
+skimr::skim(psn_raw)
 
-ews_df4 <- ews_df3 |> left_join(rail_raw, by = 'eid')
+ews_df4 <- ews_df3 |> left_join(psn_raw, by = 'eid')
 
 r <- ews_df4 |>
-  select(!!sym(org_unit),!!sym(e_date), total_persons_killed,total_persons_injured,total_damage_cost, threshold.crossed.count) |>
+  select(!!sym(org_unit),!!sym(e_date), harm_score,threshold.crossed.count) |>
   drop_na() |>
   group_by(!!sym(org_unit)) |>
   arrange(!!sym(e_date), .by_group = TRUE) |>
-  group_modify(~add_row(.x,!!sym(e_date) := NA, total_persons_killed = NA,total_persons_injured = NA,total_damage_cost = NA,threshold.crossed.count = NA)) |> ungroup()
-v_killed <- unname(unlist(r$total_persons_killed))
-v_injured <- unname(unlist(r$total_persons_injured))
-v_cost <- unname(unlist(r$total_damage_cost))
+  group_modify(~add_row(.x,!!sym(e_date) := NA, harm_score = NA,threshold.crossed.count = NA)) |> ungroup()
+
+v_harm <- unname(unlist(r$harm_score))
 v_thresh <- unname(unlist(r$threshold.crossed.count))
 
 #Calculate optimal E
-maxE<-10 #Maximum E to test
+maxE<-30 #Maximum E to test
 #Matrix for storing output
 Emat<-matrix(nrow=maxE-1, ncol=2); colnames(Emat)<-c("A", "B")
 #Loop over potential E values and calculate predictive ability
@@ -224,7 +228,7 @@ Emat<-matrix(nrow=maxE-1, ncol=2); colnames(Emat)<-c("A", "B")
 for(E in 2:maxE) {
   #Uses defaults of looking forward one prediction step (predstep)
   #And using time lag intervals of one time step (tau)
-  Emat[E-1,"A"]<-multispatialCCM::SSR_pred_boot(A=v_cost, E=E, predstep=1, tau=1)$rho
+  Emat[E-1,"A"]<-multispatialCCM::SSR_pred_boot(A=v_harm, E=E, predstep=1, tau=1)$rho
   Emat[E-1,"B"]<-multispatialCCM::SSR_pred_boot(A=v_thresh, E=E, predstep=1, tau=1)$rho
 }
 
@@ -236,17 +240,17 @@ matplot(2:maxE, Emat, type="l", col=1:2, lty=1:2,
         xlab="E", ylab="rho", lwd=2)
 legend("bottomleft", c("A", "B"), lty=1:2, col=1:2, lwd=2, bty="n")
 
-E_A <- 3
-E_B <- 4
+E_A <- 12
+E_B <- 21
 
 #Check data for nonlinear signal that is not dominated by noise
 #Checks whether predictive ability of processes declines with
 #increasing time distance
 #See manuscript and R code for details
-signal_A_out<-multispatialCCM::SSR_check_signal(A=v_scram, E=E_A, tau=1,
-                               predsteplist=1:10)
+signal_A_out<-multispatialCCM::SSR_check_signal(A=v_harm, E=E_A, tau=1,
+                                                predsteplist=1:10)
 signal_B_out<-multispatialCCM::SSR_check_signal(A=v_thresh, E=E_B, tau=1,
-                               predsteplist=1:10)
+                                                predsteplist=1:10)
 
 #Run the CCM test
 #E_A and E_B are the embedding dimensions for A and B.
@@ -255,10 +259,13 @@ signal_B_out<-multispatialCCM::SSR_check_signal(A=v_thresh, E=E_B, tau=1,
 #iterations is the number of bootsrap iterations (default 100)
 # Does A "cause" B?
 #Note - increase iterations to 100 for consistant results
-CCM_boot_A<-multispatialCCM::CCM_boot(v_scram, E_A, tau=1, DesiredL = 10:100, iterations=10)
+tictoc::tic()
+CCM_boot_A<-multispatialCCM::CCM_boot(A = v_harm, B = v_thresh, E = E_A, tau=1, iterations=100)
+tictoc::toc()
 # Does B "cause" A?
-CCM_boot_B<-multispatialCCM::CCM_boot(v_thresh, E_B, tau=1, DesiredL = 10:100, iterations=10)
-
+tictoc::tic()
+CCM_boot_B<-multispatialCCM::CCM_boot(A = v_thresh, B = v_harm, E = E_B, tau=1, iterations=100)
+tictoc::toc()
 #Test for significant causal signal
 #See R function for details
 (CCM_significance_test<-ccmtest(CCM_boot_A,

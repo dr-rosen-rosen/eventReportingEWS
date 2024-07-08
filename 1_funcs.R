@@ -610,7 +610,7 @@ get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_uni
     vec_df <- vec_df|>
       # group_by(facility) |>
       group_by(!!sym(org_unit)) |>
-      filter(n() >= 100) |> # drop facilities with low n
+      filter(n() >= minFacilityReport) |> # drop facilities with low n
       ungroup() |>
       # mutate(event_date2 = lubridate::ymd(event_date2)) |>
       # filter(between(lubridate::year(event_date2),1999,2023)) |>
@@ -629,10 +629,25 @@ get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_uni
   } else if (sys_source == 'rail') {
     vec_df <- vec_df|>
       group_by(!!sym(org_unit)) |>
-      filter(n() >= 100) |> # drop facilities with low n
+      filter(n() >= minFacilityReport) |> # drop facilities with low n
       ungroup() |>
       mutate(!!sym(e_date) := lubridate::mdy(!!sym(e_date))) |>
       # filter(between(lubridate::year(!!sym(e_date)),1999,2023)) |>
+      group_by(!!sym(org_unit)) |>
+      arrange(!!sym(e_date), .by_group = TRUE) |>
+      group_modify(
+        ~ get_rw_cs(
+          df = .x,
+          winSize = winSize,
+          vCol = vCol
+        )
+      ) |> ungroup()
+  } else if (sys_source == 'psn') {
+    vec_df <- vec_df |>
+      group_by(!!sym(org_unit)) |>
+      filter(n() >= minFacilityReport) |> # drop facilities with low n
+      ungroup() |>
+      # mutate(!!sym(e_date) := lubridate::mdy(!!sym(e_date))) |>
       group_by(!!sym(org_unit)) |>
       arrange(!!sym(e_date), .by_group = TRUE) |>
       group_modify(
