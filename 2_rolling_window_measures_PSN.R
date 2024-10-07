@@ -260,6 +260,7 @@ skimr::skim(psn_raw)
 ews_df4 <- ews_df3 |> left_join(psn_raw, by = 'eid')
 
 r <- ews_df4 |>
+  filter(primary_loc_name == 'ZBOR 3 - Neuro/Ortho/Spine') |>
   select(!!sym(org_unit),!!sym(e_date), harm_score,threshold.crossed.count) |>
   drop_na() |>
   group_by(!!sym(org_unit)) |>
@@ -270,7 +271,7 @@ v_harm <- unname(unlist(r$harm_score))
 v_thresh <- unname(unlist(r$threshold.crossed.count))
 
 #Calculate optimal E
-maxE<-30 #Maximum E to test
+maxE<-15 #Maximum E to test
 #Matrix for storing output
 Emat<-matrix(nrow=maxE-1, ncol=2); colnames(Emat)<-c("A", "B")
 #Loop over potential E values and calculate predictive ability
@@ -290,8 +291,8 @@ matplot(2:maxE, Emat, type="l", col=1:2, lty=1:2,
         xlab="E", ylab="rho", lwd=2)
 legend("bottomleft", c("A", "B"), lty=1:2, col=1:2, lwd=2, bty="n")
 
-E_A <- 7
-E_B <- 5
+E_A <- 9
+E_B <- 3
 
 #Check data for nonlinear signal that is not dominated by noise
 #Checks whether predictive ability of processes declines with
@@ -320,7 +321,7 @@ tictoc::toc()
 beepr::beep()
 #Test for significant causal signal
 #See R function for details
-(CCM_significance_test<-ccmtest(CCM_boot_A,
+(CCM_significance_test<-multispatialCCM::ccmtest(CCM_boot_A,
                                 CCM_boot_B))
 
 #Plot results

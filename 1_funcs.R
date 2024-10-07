@@ -728,3 +728,132 @@ getPassiveVoice <- function(df,text_col,ratio) {
   else{
     return(aux_pass$aux_pass)}
 }
+
+getCCMbyUnit <- function(df, org_unit, e_date, outcome, metric, sys_source, min_nrow, con) {
+  
+  print(glue::glue("Starting {metric} for {unit}..."))
+  df <- cmb_ews |>
+    filter(!!sym(org_unit) == unit) |>
+    select(!!sym(org_unit),!!sym(e_date), !!sym(outcome), !!sym(metric)) |>
+    drop_na() |>
+    arrange(e_date)
+  
+  print(nrow(df))
+  if (nrow(df) >= min_nrow) {
+    v_outcome <- unname(unlist(df[,outcome]))
+    v_thresh <- unname(unlist(df[,metric]))
+    
+    print(nrow(r))
+    if (nrow(r) >= min_nrow) {
+      v_outcome <- unname(unlist(r[,outcome]))
+      v_thresh <- unname(unlist(r[,metric]))
+      
+      #Calculate optimal E
+      maxE<-15 #Maximum E to test
+      #Matrix for storing output
+      Emat<-matrix(nrow=maxE-1, ncol=2); colnames(Emat)<-c("A", "B")
+      #Loop over potential E values and calculate predictive ability
+      #of each process for its own dynamics
+      for(E in 2:maxE) {
+        #Uses defaults of looking forward one prediction step (predstep)
+        #And using time lag intervals of one time step (tau)
+        Emat[E-1,"A"]<-multispatialCCM::SSR_pred_boot(A=v_outcome, E=E, predstep=1, tau=1)$rho
+        Emat[E-1,"B"]<-multispatialCCM::SSR_pred_boot(A=v_thresh, E=E, predstep=1, tau=1)$rho
+      }
+      #Look at plots to find E for each process at which
+      #predictive ability rho is maximized
+      # matplot(2:maxE, Emat, type="l", col=1:2, lty=1:2,main = glue::glue("Unit: {unit}"),
+      #         xlab="E", ylab="rho", lwd=2)
+      # legend("bottomleft", c("A", "B"), lty=1:2, col=1:2, lwd=2, bty="n")
+      E_A <- which.max(abs(Emat[,"A"]))
+      print(E_A)
+      E_B <- which.max(abs(Emat[,"B"]))
+      print(E_B)
+      tryCatch(
+        expr = {
+          signal_A_out<-multispatialCCM::SSR_check_signal(A=v_outcome, E=E_A, tau=1,
+                                                          predsteplist=1:10)
+          print(signal_A_out)
+        },
+        error = function(e){
+          signal_A_out <- FALSE
+          print(e)
+        }
+      )
+      # print(signal_A_out)
+      tryCatch(
+        expr = {
+          signal_B_out<-multispatialCCM::SSR_check_signal(A=v_thresh, E=E_B, tau=1,
+                                                          predsteplist=1:10)
+          print(signal_B_out)
+        },
+        error = function(e){
+          signal_B_out <- FALSE
+          print(e)
+        }
+      )
+      # print(signal_B_out)
+      tryCatch(
+        expr = {
+          if ((signal_A_out$rho_pre_slope[["Pr(>|t|)"]] <= 0.2) & (signal_B_out$rho_pre_slope[["Pr(>|t|)"]] < 0.2)) {
+            #Run the CCM test
+            CCM_boot_A<-multispatialCCM::CCM_boot(A = v_outcome, B = v_thresh, E = E_A, tau=1, iterations=10)
+            # Does B "cause" A?
+            CCM_boot_B<-multispatialCCM::CCM_boot(A = v_thresh, B = v_outcome, E = E_B, tau=1, iterations=10)
+            #Test for significant causal signal
+            CCM_significance_test<-multispatialCCM::ccmtest(CCM_boot_A,
+                                                            CCM_boot_B)
+            print(CCM_significance_test)
+          } else {
+            print(glue::glue("No significant dyanmics for {unit}..."))
+          }},
+        error = function(e) {
+          print(e)
+        }
+      )
+    } else { print(glue::glue("Too few rows for {unit} on {metric}:{nrow(r)}"))}
+    print(glue::glue("Done metric: {metric}"))
+  }
+  print(glue::glue("Done unit: {unit}"))
+  tryCatch(
+    expr = {
+      DBI::dbAppendTable(conn = con, 'ccm_summaries',
+                         data.frame(
+                           system_source = sys_source,
+                           org_unit = org_unit,
+                           a_var = outcome,
+                           b_var = metric,
+                           a_e_dim = E_A,
+                           b_e_dim = E_B,
+                           a_rho_slope = signal_A_out$rho_pre_slope[[1]],
+                           a_rho_p = signal_A_out$rho_pre_slope[[2]],
+                           b_rho_slope = signal_B_out$rho_pre_slope[[1]],
+                           b_rho_p = signal_B_out$rho_pre_slope[[2]],
+                           a_cause_b = CCM_significance_test[[1]],
+                           b_cause_a =CCM_significance_test[[2]],
+                           run_complete = TRUE
+                         ))
+    },
+    error = function(e) {
+      DBI::dbAppendTable(conn = con, 'ccm_summaries',
+                         data.frame(
+                           system_source = sys_source,
+                           org_unit = org_unit,
+                           a_var = outcome,
+                           b_var = metric,
+                           n_events = nrow(r),
+                           # a_e_dim = E_A,
+                           # b_e_dim = E_B,
+                           # a_rho_slope = signal_A_out$rho_pre_slope[[1]],
+                           # a_rho_p = signal_A_out$rho_pre_slope[[2]],
+                           # b_rho_slope = signal_B_out$rho_pre_slope[[1]],
+                           # b_rho_p = signal_B_out$rho_pre_slope[[2]],
+                           # a_cause_b = CCM_significance_test[[1]],
+                           # b_cause_a =CCM_significance_test[[2]],
+                           run_complete = FALSE
+                         ))
+    }
+  )
+
+  
+}
