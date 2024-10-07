@@ -14,22 +14,31 @@ con <- DBI::dbConnect(RPostgres::Postgres(),
                       port = config$dbPort
 )
 
+winSize <- 1
+sys_source <- 'nrc'
+minFacilityReport <- 100
+org_unit <- 'facility'
+e_date <- 'event_date2'
 t <- get_clean_vecs(
   vCol = 'composite_climate_vec', 
-  minFacilityReport = 100, 
-  winSize = 1, 
-  sys_source = 'nrc',
+  minFacilityReport = minFacilityReport, 
+  winSize = winSize, 
+  sys_source = sys_source,
+  org_unit = org_unit, 
+  e_date = e_date,
   con = con) |> select(eid,cos_sim_rw_composite_climate_vec_1)
 u <- get_clean_vecs(
   vCol = 'embedding', 
-  minFacilityReport = 100, 
-  winSize = 1, 
-  sys_source = 'nrc',
+  minFacilityReport = minFacilityReport, 
+  winSize = winSize, 
+  sys_source = sys_source,
+  org_unit = org_unit, 
+  e_date = e_date,
   con = con)
 
 v <- full_join(t,u, by = 'eid')
 
-table(nrc_df$facility)
+table(v |> select(!!sym(org_unit)))
 
 
 #########################################################
@@ -41,31 +50,35 @@ library(EWSmethods)
 
 key <- v |>
   drop_na() |>
-  #select(facility,event_date2,eid,cos_sim_rw_composite_climate_vec_1,cos_sim_rw_embedding_1) |>
-  group_by(facility) |>
-  arrange(event_date2, .by_group = TRUE) |>
+  group_by(!!sym(org_unit)) |>
+  arrange(!!sym(e_date), .by_group = TRUE) |>
   mutate(t = row_number()) |> ungroup()
-  
+
+tictoc::tic()
+future::plan(multisession, workers = availableCores())
 ews_df2 <- v |>
   drop_na() |>
-  select(facility,event_date2,cos_sim_rw_composite_climate_vec_1,cos_sim_rw_embedding_1) |>
-  group_by(facility) |>
-  arrange(event_date2, .by_group = TRUE) |>
-  select(-event_date2) |>
+  select(!!sym(org_unit),!!sym(e_date),cos_sim_rw_composite_climate_vec_1,cos_sim_rw_embedding_1) |>
+  group_by(!!sym(org_unit)) |>
+  arrange(!!sym(e_date), .by_group = TRUE) |>
+  select(-!!sym(e_date)) |>
   mutate(t = row_number()) |> 
   relocate(t) |> 
   tidyr::nest() |>
-  mutate(ews_results = purrr::map(data, ~EWSmethods::multiEWS(data = .,
-                                                           metrics = c("meanAR","maxAR","meanSD","maxSD","eigenMAF","mafAR","mafSD","pcaAR","pcaSD","eigenCOV","maxCOV","mutINFO"),
-                                                           method = "expanding",
-                                                           burn_in = 50,
-                                                           threshold = 2)))
+  mutate(ews_results = furrr::future_map(data, ~EWSmethods::multiEWS(data = .,
+                                                                     metrics = c("meanAR","maxAR","meanSD","maxSD","eigenMAF","mafAR","mafSD","pcaAR","pcaSD","eigenCOV","maxCOV","mutINFO"),
+                                                                     method = "expanding",
+                                                                     burn_in = 50,
+                                                                     threshold = 2)))
+tictoc::toc()
+saveRDS(ews_df2, glue::glue("{sys_source}_ews_df2.rds"))
+future::plan(sequential)
 
 ews_df3 <- purrr::pmap_dfr(ews_df2, ~ data.frame(..3$EWS$raw) |>
-                       mutate(facility = ..1) |>
-                       group_by(facility,time) |>
-                       summarise(threshold.crossed.count = sum(threshold.crossed))) |>
-  left_join(key,by = c('facility','time' = 't'))
+                             mutate(!!sym(org_unit) := ..1) |>
+                             group_by(!!sym(org_unit),time) |>
+                             summarise(threshold.crossed.count = sum(threshold.crossed))) |>
+  left_join(key,by = c(org_unit,'time' = 't'))
 
 plot(ews_df2$ews_results[[1]],  y_lab = "Density")
 
@@ -74,24 +87,49 @@ for (i in seq(from = 1, to = length(ews_df),by=1)) {
   ggsave(here::here('plots',glue::glue("EWS_{i}.png")),p)
 }
 
+getEventBurstiness <- function(g, e_date, t_unit) {
+  data <- g |> 
+    arrange(!!sym(e_date)) |>
+    mutate(
+      lag_time_in = lag(!!sym(e_date)),
+      inter_event_dur = as.numeric(difftime(!!sym(e_date), lag_time_in, units = t_unit))
+    ) |>
+    dplyr::select(inter_event_dur) |>
+    drop_na()
+  r <- sd(data$inter_event_dur, na.rm = TRUE) / mean(data$inter_event_dur, na.rm = TRUE)
+  n <- nrow(data)
+  b_param <- (sqrt(n + r) - sqrt(n - 1)) / (((sqrt(n + 1) - 2) * r) + sqrt(n - 1))
+  return(b_param)
+}
 
+getEventBurstiness_sfly <- purrr::safely(.f = getEventBurstiness, otherwise = NA)
 
-# for (metric in metrics) {
-#   print(metric)
-#   EWS_model <- EWSmethods::uniEWS(data = psn_bert_vader_df |> select(t,!!sym(metric)),
-#                                   metrics = c("ar1","SD","skew"),
-#                                   method = "expanding",
-#                                   burn_in = 50,
-#                                   threshold = 2)
-#   threshold_hits <- EWS_model$EWS |>
-#     group_by(time) |> summarise('{metric}.threshold.crossed.count' := sum(threshold.crossed))
-#   print(nrow(threshold_hits))
-#   metrics_dfs[[metric]] <- threshold_hits
-# }
-# 
-# cmbd_ind_vars <- bind_cols(metrics_dfs) |>
-#   rename(time = time...1) |>
-#   select(-contains('...'))
+q <- runner::runner(
+  x = v, 
+  k = 50,
+  na_pad = TRUE,
+  f = function(x) {getEventBurstiness_sfly(x,e_date = e_date,
+                                           t_unit = 'weeks')$result}
+)
+
+data_by_org <- v |>
+  group_by(!!sym(org_unit)) |>
+  arrange(!!sym(e_date), .by_group = TRUE) |>
+  ungroup() |>
+  split(v[,org_unit])
+
+bursty_df <- purrr::map(
+  data_by_org, 
+  function(x = .x) {
+    b <- runner::runner(
+      x = x, 
+      k = 10,
+      na_pad = TRUE,
+      f = function(x) {getEventBurstiness_sfly(g = x,e_date = e_date,
+                                           t_unit = 'weeks')$result})
+    x$b_param <- b
+    return(x)}
+) |> bind_rows(.id = 'eid')
 
 
 #########################################################

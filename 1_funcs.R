@@ -537,18 +537,18 @@ get_cos_sim <- function(x,y) {
 }
 
 rolling_vec_mean <- function(x) {
-  # x <- x |>
-  #   mutate(embedding = pgvector.unserialize(embedding))
   # this unpacks the char so each row has a column for each embedding value
   # then takes colmeans and repacks it into a char
 
   df <- as.data.frame(
     do.call(
       rbind,
-      pgvector.unserialize(x)))
+      pgvector.unserialize(
+      unname(unlist(x))
+        )))
   return(
     pgvector.serialize(
-      unname(colMeans(df))
+      unname(colMeans(df, na.rm = TRUE))
     )
   )
 }
@@ -559,7 +559,7 @@ get_rw_cs <- function(df,winSize,vCol) {
       x = df[,vCol],
       k = winSize,
       f = rolling_vec_mean,
-      na_pad = FALSE
+      na_pad = TRUE
     )
     df <- df |>
       mutate(
@@ -575,7 +575,7 @@ get_rw_cs <- function(df,winSize,vCol) {
         lag = lag(!!sym(vCol))
       ) |>
       rowwise() |>
-      mutate('cos_sim_rw_{vCol}_{winSize}' := get_cos_sim(!!sym(vCol),lag)) |> 
+      mutate('cos_sim_rw_{vCol}_{winSize}' := get_cos_sim(!!sym(vCol),lag)) |>
       ungroup()
     return(df)
   } else {
@@ -602,18 +602,12 @@ get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_uni
     raw_table = DBI::dbQuoteIdentifier(con, paste0(sys_source,'_raw')),
     sys = sys_source
   )
-  print(q)
-  
   vec_df <- DBI::dbGetQuery(conn = con, q)
-  print(head(vec_df,10))
   if (sys_source == 'nrc') {
     vec_df <- vec_df|>
-      # group_by(facility) |>
       group_by(!!sym(org_unit)) |>
       filter(n() >= minFacilityReport) |> # drop facilities with low n
       ungroup() |>
-      # mutate(event_date2 = lubridate::ymd(event_date2)) |>
-      # filter(between(lubridate::year(event_date2),1999,2023)) |>
       mutate(!!sym(e_date) := lubridate::ymd(!!sym(e_date))) |>
       filter(between(lubridate::year(!!sym(e_date)),1999,2023)) |>
       group_by(!!sym(org_unit)) |>
@@ -632,9 +626,15 @@ get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_uni
       filter(n() >= minFacilityReport) |> # drop facilities with low n
       ungroup() |>
       mutate(!!sym(e_date) := lubridate::mdy(!!sym(e_date))) |>
-      # filter(between(lubridate::year(!!sym(e_date)),1999,2023)) |>
       group_by(!!sym(org_unit)) |>
       arrange(!!sym(e_date), .by_group = TRUE) |>
+      # tidyr::nest() |>
+      # furrr::future_map(data, ~ get_rw_cs(
+      #       df = data,
+      #       winSize = winSize,
+      #       vCol = vCol
+      #     )) |>
+      # ungroup()
       group_modify(
         ~ get_rw_cs(
           df = .x,
@@ -647,7 +647,6 @@ get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_uni
       group_by(!!sym(org_unit)) |>
       filter(n() >= minFacilityReport) |> # drop facilities with low n
       ungroup() |>
-      # mutate(!!sym(e_date) := lubridate::mdy(!!sym(e_date))) |>
       group_by(!!sym(org_unit)) |>
       arrange(!!sym(e_date), .by_group = TRUE) |>
       group_modify(
