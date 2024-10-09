@@ -5,6 +5,8 @@
 #########################################################
 library(EWSmethods)
 library(multispatialCCM)
+library(future)
+library(furrr)
 
 #########################################################
 ########## Read in and merge data
@@ -88,8 +90,9 @@ data_by_org <- v |>
   ungroup() |>
   split(v[,org_unit])
 
+future::plan(future::multisession, workers = parallelly::availableCores())
 tictoc::tic()
-bursty_df <- purrr::map(
+bursty_df <- furrr::future_map(
   data_by_org, 
   function(x = .x) {
     b <- runner::runner(
@@ -102,9 +105,10 @@ bursty_df <- purrr::map(
     return(x)}
 ) |> bind_rows(.id = org_unit) |> select(eid,inter_event_dur, b_param)
 tictoc::toc()
+# future::plan(future::sequential)
 
 tictoc::tic()
-bursty_df2 <- purrr::map(
+bursty_df2 <- furrr::future_map(
   data_by_org, 
   function(x = .x) {
     b <- runner::runner(
@@ -117,9 +121,9 @@ bursty_df2 <- purrr::map(
     return(x)}
 ) |> bind_rows(.id = org_unit) |> select(eid,b_param2)
 tictoc::toc()
-
+future::plan(future::sequential)
 bursty_df <- full_join(bursty_df,bursty_df2, by = 'eid')
-
+saveRDS(bursty_df, glue::glue("{sys_source}_bursty_df.rds"))
 #########################################################
 ########## ESW analyses - Multivariate
 #########################################################
@@ -134,7 +138,7 @@ key <- v |>
 ews_vars <- c('cos_sim_rw_composite_climate_vec_1','cos_sim_rw_embedding_1', 'b_param','inter_event_dur') # 'inter_event_dur' 'b_param2',
 
 tictoc::tic()
-future::plan(multisession, workers = availableCores())
+future::plan(future::multisession, workers = parallelly::availableCores())
 ews_df2 <- v |>
   full_join(bursty_df, by = join_by('eid')) |>
   select(!!sym(org_unit),!!sym(e_date),all_of(ews_vars)) |>
@@ -152,7 +156,7 @@ ews_df2 <- v |>
                                                                      threshold = 2)))
 tictoc::toc()
 saveRDS(ews_df2, glue::glue("{sys_source}_ews_df2_multi.rds"))
-future::plan(sequential)
+future::plan(future::sequential)
 
 ews_df3 <- purrr::pmap_dfr(ews_df2, ~ data.frame(..3$EWS$raw) |>
                              mutate(!!sym(org_unit) := ..1) |>
@@ -178,7 +182,7 @@ single_ews_df <- v |>
   arrange(!!sym(e_date), .by_group = TRUE) |>
   mutate(t = row_number()) |> ungroup()
 
-future::plan(multisession, workers = availableCores())
+future::plan(future::multisession, workers = parallelly::availableCores())
 tictoc::tic()
 metrics <- c('cos_sim_rw_composite_climate_vec_1','cos_sim_rw_embedding_1','b_param','inter_event_dur') # 'b_param2',
 for (metric in metrics) {
@@ -208,9 +212,9 @@ for (metric in metrics) {
   
 }
 tictoc::toc()
-saveRDS(single_ews_df2, glue::glue("{sys_source}_single_ews_df2_{metric}.rds" ))
+saveRDS(single_ews_df, glue::glue("{sys_source}_single_ews_df.rds" ))
 beepr::beep()
-future::plan(sequential)
+future::plan(future::sequential)
 
 single_ews_df |> select(contains('threshold.crossed')) |> drop_na() |> skimr::skim()
 single_ews_df |> select(contains('threshold.crossed')) |> drop_na() |> cor()
@@ -365,3 +369,28 @@ for (unit in unlist(unique(cmb_ews[,org_unit]))) {
   }
   print(glue::glue("Done unit: {unit}"))
 }
+
+options(future.globals.maxSize= (1024^2)*2000)
+
+#### 
+future::plan(future::multisession, workers = parallelly::availableCores())
+tictoc::tic()
+metric <- 'multi.threshold.crossed.count'
+by_org_unit <- cmb_ews |>
+  drop_na() |>
+  select(!!sym(org_unit),!!sym(e_date),!!sym(metric),!!sym(outcome)) |>
+  group_by(!!sym(org_unit)) |>
+  arrange(!!sym(e_date), .by_group = TRUE) |>
+  select(-!!sym(e_date)) |>
+  tidyr::nest()
+
+furrr::future_walk2(by_org_unit$data, by_org_unit$reporting_railroad_code,~getCCMbyUnit(df = .x, 
+                                                         org_unit = org_unit,
+                                             specific_unit = .y,
+                                                         e_date = e_date, 
+                                                         outcome = outcome, 
+                                                         metric = metric, 
+                                                         sys_source = sys_source, 
+                                                         min_nrow = min_nrow, 
+                                                         con = con))
+future::plan(future::sequential)
