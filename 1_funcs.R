@@ -729,9 +729,9 @@ getPassiveVoice <- function(df,text_col,ratio) {
     return(aux_pass$aux_pass)}
 }
 
-getCCMbyUnit <- function(df, org_unit, specific_unit, e_date, outcome, metric, sys_source, min_nrow, con) {
+getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nrow, con) {
   
-  # print(glue::glue("Starting {metric} for {specific_unit}..."))
+  print(glue::glue("Starting {metric} for {specific_unit}..."))
   print(nrow(df))
   if (nrow(df) >= min_nrow) {
     v_outcome <- unname(unlist(df[,outcome]))

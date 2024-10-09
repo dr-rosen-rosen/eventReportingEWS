@@ -384,10 +384,8 @@ by_org_unit <- cmb_ews |>
   select(-!!sym(e_date)) |>
   tidyr::nest()
 
-furrr::future_walk2(by_org_unit$data, by_org_unit$reporting_railroad_code,~getCCMbyUnit(df = .x, 
-                                                         org_unit = org_unit,
+furrr::future_walk2(by_org_unit$data, by_org_unit$reporting_railroad_code,~getCCMbyUnit(df = .x,
                                              specific_unit = .y,
-                                                         e_date = e_date, 
                                                          outcome = outcome, 
                                                          metric = metric, 
                                                          sys_source = sys_source, 
