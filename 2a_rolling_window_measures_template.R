@@ -9,9 +9,8 @@ library(future)
 library(furrr)
 
 #########################################################
-########## Read in and merge data
+########## 1. Read in and merge data ----
 #########################################################
-
 con <- DBI::dbConnect(RPostgres::Postgres(),
                       user = config$dbUser,
                       password = config$dbPW,
@@ -30,7 +29,6 @@ e_date <- 'event_date2'
 sys_source <- 'rail'
 org_unit <- 'reporting_railroad_code'
 e_date <- 'event_date'
-
 
 t <- get_clean_vecs(
   vCol = 'composite_climate_vec', 
@@ -54,7 +52,7 @@ v <- full_join(t,u, by = 'eid')
 table(v |> select(!!sym(org_unit)))
 
 #########################################################
-########## Get inter-event durations and burstiness
+########## 2. Get inter-event durations and burstiness ====
 #########################################################
 t_unit <- 'days'
 getEventBurstiness <- function(g, e_date, t_unit, corrected) {
@@ -62,7 +60,8 @@ getEventBurstiness <- function(g, e_date, t_unit, corrected) {
     arrange(!!sym(e_date)) |>
     mutate(
       lag_time_in = lag(!!sym(e_date)),
-      inter_event_dur = as.numeric(difftime(!!sym(e_date), lag_time_in, units = t_unit))
+      inter_event_dur = as.numeric(
+        difftime(!!sym(e_date), lag_time_in, units = t_unit))
     ) |>
     dplyr::select(inter_event_dur) |>
     drop_na()
@@ -123,9 +122,10 @@ bursty_df2 <- furrr::future_map(
 tictoc::toc()
 future::plan(future::sequential)
 bursty_df <- full_join(bursty_df,bursty_df2, by = 'eid')
-saveRDS(bursty_df, glue::glue("{sys_source}_bursty_df.rds"))
-#########################################################
-########## ESW analyses - Multivariate
+# saveRDS(bursty_df, glue::glue("{sys_source}_bursty_df.rds"))
+# bursty_df <- readRDS(glue::glue("{sys_source}_bursty_df.rds"))
+########################################################
+########## 3. ESW analyses - Multivariate ====----------
 #########################################################
 
 key <- v |>
@@ -146,8 +146,8 @@ ews_df2 <- v |>
   group_by(!!sym(org_unit)) |>
   arrange(!!sym(e_date), .by_group = TRUE) |>
   select(-!!sym(e_date)) |>
-  mutate(t = row_number()) |> 
-  relocate(t) |> 
+  mutate(t = row_number()) |>
+  relocate(t) |>
   tidyr::nest() |>
   mutate(ews_results = furrr::future_map(data, ~EWSmethods::multiEWS(data = .,
                                                                      metrics = c("meanAR","maxAR","meanSD","maxSD","eigenMAF","mafAR","mafSD","pcaAR","pcaSD","eigenCOV","maxCOV","mutINFO"),
@@ -155,8 +155,39 @@ ews_df2 <- v |>
                                                                      burn_in = 50,
                                                                      threshold = 2)))
 tictoc::toc()
+beepr::beep()
 saveRDS(ews_df2, glue::glue("{sys_source}_ews_df2_multi.rds"))
+ews_df2 <- readRDS(glue::glue("{sys_source}_ews_df2_multi.rds"))
 future::plan(future::sequential)
+
+# second try to get this to actually run in parallel
+
+# data_by_org <- v |>
+#   full_join(bursty_df, by = join_by('eid')) |>
+#   select(!!sym(org_unit),!!sym(e_date),all_of(ews_vars)) |>
+#   drop_na() |>
+#   group_by(!!sym(org_unit)) |>
+#   arrange(!!sym(e_date), .by_group = TRUE) |>
+#   select(-!!sym(e_date)) |>
+#   mutate(t = row_number()) |> 
+#   relocate(t) |> 
+#   tidyr::nest() 
+# ews_metrics <- c("meanAR","maxAR","meanSD","maxSD","eigenMAF","mafAR",
+#                   "mafSD","pcaAR","pcaSD","eigenCOV","maxCOV","mutINFO")
+# tictoc::tic()
+# future::plan(future::multisession, workers = parallelly::availableCores())
+# ews_df2 <- furrr::future_map(
+#   data_by_org, 
+#   ~EWSmethods::multiEWS(data = .x[2],
+#                         metrics = ews_metrics,
+#                         method = "expanding",
+#                         burn_in = 50,
+#                         threshold = 2)) #|> bind_rows(.id = org_unit)
+# tictoc::toc()
+# beepr::beep()
+# saveRDS(ews_df2, glue::glue("{sys_source}_ews_df2_multi.rds"))
+# future::plan(future::sequential)
+
 
 ews_df3 <- purrr::pmap_dfr(ews_df2, ~ data.frame(..3$EWS$raw) |>
                              mutate(!!sym(org_unit) := ..1) |>
@@ -165,14 +196,13 @@ ews_df3 <- purrr::pmap_dfr(ews_df2, ~ data.frame(..3$EWS$raw) |>
   left_join(key,by = c(org_unit,'time' = 't'))
 
 plot(ews_df2$ews_results[[24]],  y_lab = "Density")
-# 
 for (i in seq(from = 1, to = nrow(ews_df2),by=1)) {
   p<-plot(ews_df2$ews_results[[i]],  y_lab = "Density")
   ggsave(here::here('plots',glue::glue("EWS_multi_{i}.png")),p)
 }
 
 #########################################################
-########## ESW analyses - Single measures
+########## 4. ESW analyses - Single measures ----
 #########################################################
 
 single_ews_df <- v |>
@@ -212,9 +242,12 @@ for (metric in metrics) {
   
 }
 tictoc::toc()
-saveRDS(single_ews_df, glue::glue("{sys_source}_single_ews_df.rds" ))
+# saveRDS(single_ews_df, glue::glue("{sys_source}_single_ews_df.rds"))
+
 beepr::beep()
 future::plan(future::sequential)
+
+single_ews_df <- readRDS(glue::glue("{sys_source}_single_ews_df.rds"))
 
 single_ews_df |> select(contains('threshold.crossed')) |> drop_na() |> skimr::skim()
 single_ews_df |> select(contains('threshold.crossed')) |> drop_na() |> cor()
@@ -229,12 +262,14 @@ single_ews_df |> select(contains('threshold.crossed')) |> drop_na() |> cor()
 cmb_ews <- single_ews_df |>
   select(eid, contains('threshold.crossed')) |>
   full_join(ews_df3, by = 'eid')
-ews.cor <- cor(cmb_ews |> select(contains('threshold.crossed')) |> drop_na())
-corrplot::corrplot(ews.cor)
+# saveRDS(cmb_ews,glue::glue('{sys_source}_cmb_ews.rds'))
+# cmb_ews <- readRDS(glue::glue('{sys_source}_cmb_ews.rds'))
+# ews.cor <- cor(cmb_ews |> select(contains('threshold.crossed')) |> drop_na())
+# corrplot::corrplot(ews.cor)
 
 #########################################################
 #########################################################
-########## Link to outcome data
+########## 5. Link to outcome data ----
 #########################################################
 #########################################################
 
@@ -260,7 +295,7 @@ cmb_ews <- cmb_ews |> left_join(rail_raw, by = 'eid') |> drop_na(all_of(org_unit
 
 #########################################################
 #########################################################
-########## CCM analyses for OUTCOMES
+########## 6. CCM analyses for OUTCOMES ----
 #########################################################
 #########################################################
 
@@ -348,7 +383,7 @@ for (unit in unlist(unique(cmb_ews[,org_unit]))) {
       # print(signal_B_out)
       tryCatch(
         expr = {
-          if ((signal_A_out$rho_pre_slope[["Pr(>|t|)"]] <= 0.2) & (signal_B_out$rho_pre_slope[["Pr(>|t|)"]] < 0.2)) {
+          if (signal_A_out$rho_pre_slope[["Pr(>|t|)"]] <= 0.2) & (signal_B_out$rho_pre_slope[["Pr(>|t|)"]] < 0.2)) {
             #Run the CCM test
             CCM_boot_A<-multispatialCCM::CCM_boot(A = v_outcome, B = v_thresh, E = E_A, tau=1, iterations=10)
             # Does B "cause" A?
@@ -370,25 +405,43 @@ for (unit in unlist(unique(cmb_ews[,org_unit]))) {
   print(glue::glue("Done unit: {unit}"))
 }
 
-options(future.globals.maxSize= (1024^2)*2000)
 
-#### 
-future::plan(future::multisession, workers = parallelly::availableCores())
+#########################################################
+#########################################################
+########## 7. CCM analyses PARALELLIZED for OUTCOMES ----
+#########################################################
+#########################################################
+options(
+  future.globals.maxSize= (1024^2)*2000,
+  future.rng.onMisuse = 'ignore')
+
+
 tictoc::tic()
-metric <- 'multi.threshold.crossed.count'
-by_org_unit <- cmb_ews |>
-  drop_na() |>
-  select(!!sym(org_unit),!!sym(e_date),!!sym(metric),!!sym(outcome)) |>
-  group_by(!!sym(org_unit)) |>
-  arrange(!!sym(e_date), .by_group = TRUE) |>
-  select(-!!sym(e_date)) |>
-  tidyr::nest()
+# metric <- 'multi.threshold.crossed.count'
+min_nrow <- 50
+outcomes <- c('total_persons_killed', 'total_persons_injured', 'total_damage_cost')
+future::plan(future::multisession, workers = parallelly::availableCores())
+for (metric in metrics) {
+  for (outcome in outcomes) {  by_org_unit <- cmb_ews |>
+    drop_na() |>
+    select(!!sym(org_unit),!!sym(e_date),!!sym(metric),!!sym(outcome)) |>
+    group_by(!!sym(org_unit)) |>
+    arrange(!!sym(e_date), .by_group = TRUE) |>
+    select(-!!sym(e_date)) |>
+    tidyr::nest()
 
-furrr::future_walk2(by_org_unit$data, by_org_unit$reporting_railroad_code,~getCCMbyUnit(df = .x,
-                                             specific_unit = .y,
-                                                         outcome = outcome, 
-                                                         metric = metric, 
-                                                         sys_source = sys_source, 
-                                                         min_nrow = min_nrow, 
-                                                         con = con))
+  furrr::future_walk2(by_org_unit$data, by_org_unit$reporting_railroad_code,~getCCMbyUnit(df = .x,
+                                              specific_unit = .y,
+                                                          outcome = outcome, 
+                                                          metric = metric, 
+                                                          sys_source = sys_source, 
+                                                          min_nrow = min_nrow, 
+                                                          config = config))
+  print(glue::glue("end {outcome} / {metric}..."))
+  }
+  print(glue::glue("END all for {metric}..."))
+}
+tictoc::toc()
 future::plan(future::sequential)
+
+# future::supportsMulticore()

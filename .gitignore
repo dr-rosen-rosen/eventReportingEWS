@@ -1,7 +1,7 @@
 .DS_Store
 *.xlsx
 *.csv 
-
+*.rds
 # History files
 .Rhistory
 .Rapp.history
@@ -53,3 +53,5 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+plots/

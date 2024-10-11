@@ -6,7 +6,7 @@ source('1_dict_var_defs.R')
 
 ################################################################
 ###################
-################### Reading and cleaning data
+################### Reading and cleaning data ----
 ################### 
 ###################
 ################################################################
@@ -312,7 +312,6 @@ get_and_clean_and_code_psn <- function(f,add_liwc,add_emo_voc,add_butter,add_mul
   return(df)
 }
 
-
 harmonize_key_vars <- function(df, source) {
   #creates 
   if (source == 'asrs') {
@@ -339,7 +338,7 @@ harmonize_key_vars <- function(df, source) {
 
 ################################################################
 ###################
-################### Database mngmt
+################### Database mngmt  ----
 ################### 
 ###################
 ################################################################
@@ -481,7 +480,7 @@ insert_vec <- function(r,con, col_name) {
 
 ################################################################
 ###################
-################### Funcs for embeddings
+################### Funcs for embeddings  ----
 ################### 
 ###################
 ################################################################
@@ -586,13 +585,10 @@ get_rw_cs <- function(df,winSize,vCol) {
 
 ################################################################
 ###################
-################### Functions for pulling and manipulating vector
+################### Functions for pulling and manipulating vector  ----
 ################### 
 ###################
 ################################################################
-
-
-# pull, clean, and structure vectors
 
 get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_unit, e_date,con) {
   q <- DBI::sqlInterpolate(
@@ -662,7 +658,7 @@ get_clean_vecs <- function(vCol, minFacilityReport, winSize, sys_source, org_uni
 
 ################################################################
 ###################
-################### General functions for closed-voc coding
+################### General functions for closed-voc coding  ----
 ################### 
 ###################
 ################################################################
@@ -729,7 +725,14 @@ getPassiveVoice <- function(df,text_col,ratio) {
     return(aux_pass$aux_pass)}
 }
 
-getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nrow, con) {
+################################################################
+###################
+################### Modeling scripts  ----
+################### 
+###################
+################################################################
+
+getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nrow, config) {
   
   print(glue::glue("Starting {metric} for {specific_unit}..."))
   print(nrow(df))
@@ -749,11 +752,6 @@ getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nro
       Emat[E-1,"A"]<-multispatialCCM::SSR_pred_boot(A=v_outcome, E=E, predstep=1, tau=1)$rho
       Emat[E-1,"B"]<-multispatialCCM::SSR_pred_boot(A=v_thresh, E=E, predstep=1, tau=1)$rho
     }
-    #Look at plots to find E for each process at which
-    #predictive ability rho is maximized
-    # matplot(2:maxE, Emat, type="l", col=1:2, lty=1:2,main = glue::glue("Unit: {specific_unit}"),
-    #         xlab="E", ylab="rho", lwd=2)
-    # legend("bottomleft", c("A", "B"), lty=1:2, col=1:2, lwd=2, bty="n")
     E_A <- which.max(abs(Emat[,"A"]))
     print(E_A)
     E_B <- which.max(abs(Emat[,"B"]))
@@ -784,11 +782,11 @@ getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nro
     # print(signal_B_out)
     tryCatch(
       expr = {
-        if ((signal_A_out$rho_pre_slope[["Pr(>|t|)"]] <= 0.2) & (signal_B_out$rho_pre_slope[["Pr(>|t|)"]] < 0.2)) {
+        if ((signal_A_out$rho_pre_slope[["Pr(>|t|)"]] <= 0.3) & (signal_B_out$rho_pre_slope[["Pr(>|t|)"]] < 0.3)) {
           #Run the CCM test
-          CCM_boot_A<-multispatialCCM::CCM_boot(A = v_outcome, B = v_thresh, E = E_A, tau=1, iterations=10)
+          CCM_boot_A<-multispatialCCM::CCM_boot(A = v_outcome, B = v_thresh, E = E_A, tau=1, iterations=100)
           # Does B "cause" A?
-          CCM_boot_B<-multispatialCCM::CCM_boot(A = v_thresh, B = v_outcome, E = E_B, tau=1, iterations=10)
+          CCM_boot_B<-multispatialCCM::CCM_boot(A = v_thresh, B = v_outcome, E = E_B, tau=1, iterations=100)
           #Test for significant causal signal
           CCM_significance_test<-multispatialCCM::ccmtest(CCM_boot_A,
                                                           CCM_boot_B)
@@ -803,6 +801,12 @@ getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nro
     } else { print(glue::glue("Too few rows for {specific_unit} on {metric}:{nrow(df)}"))}
     print(glue::glue("Done metric: {metric}"))
   print(glue::glue("Done unit: {specific_unit}"))
+  con <- DBI::dbConnect(RPostgres::Postgres(),
+                      user = config$dbUser,
+                      password = config$dbPW,
+                      host = config$db_host,
+                      dbname = config$db_name,
+                      port = config$dbPort)
   tryCatch(
     expr = {
       DBI::dbAppendTable(conn = con, 'ccm_summaries',
@@ -835,5 +839,6 @@ getCCMbyUnit <- function(df, specific_unit, outcome, metric, sys_source, min_nro
                          ))
     }
   )
+  DBI::dbDisconnect(con)
   NULL
 }
